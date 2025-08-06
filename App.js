@@ -6,6 +6,7 @@ import HomeScreen from './screens/HomeScreen';
 import CreateGroup from './screens/CreateGroup';
 import JoinGroup from './screens/JoinGroup';
 import SignUp from './screens/SignUp';
+import AlreadyAccount from './screens/AlreadyAccount';
 
 const Stack = createNativeStackNavigator();
 
@@ -17,6 +18,7 @@ const App = () => {
         <Stack.Screen name="CreateGroup" component={CreateGroup} />
         <Stack.Screen name="JoinGroup" component={JoinGroup} />
         <Stack.Screen name="SignUp" component={SignUp} />
+        <Stack.Screen name="AlreadyAccount" component={AlreadyAccount} /> 
       </Stack.Navigator>
     </NavigationContainer>
   );
