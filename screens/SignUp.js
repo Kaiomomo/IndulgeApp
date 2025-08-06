@@ -1,5 +1,18 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, Alert, TouchableOpacity } from 'react-native';
+import {
+  View,
+  Text,
+  TextInput,
+  Button,
+  StyleSheet,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  Keyboard,
+} from 'react-native';
 import { auth } from '../FirebaseConfig';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 
@@ -17,37 +30,41 @@ const SignUp = ({ navigation }) => {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Sign Up</Text>
-      <TextInput
-        placeholder="Email"
-        value={email}
-        onChangeText={setEmail}
-        style={styles.input}
-        keyboardType="email-address"
-        autoCapitalize="none"
-      />
-      <TextInput
-        placeholder="Password"
-        value={password}
-        onChangeText={setPassword}
-        style={styles.input}
-        secureTextEntry
-      />
-  <View style={styles.linkContainer}>
-  <TouchableOpacity onPress={() => navigation.navigate('AlreadyAccount')}>
-    <Text style={styles.linkText}>Already have an account?</Text>
-  </TouchableOpacity>
-</View>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <View style={styles.container}>
+          <Text style={styles.title}>Sign Up</Text>
+          <TextInput
+            placeholder="Email"
+            value={email}
+            onChangeText={setEmail}
+            style={styles.input}
+            keyboardType="email-address"
+            autoCapitalize="none"
+          />
+          <TextInput
+            placeholder="Password"
+            value={password}
+            onChangeText={setPassword}
+            style={styles.input}
+            secureTextEntry
+          />
 
-    <View style={styles.buttonWrapper}>
-  <Button title="Sign Up" onPress={handleSignUp} />
-</View>
+          <View style={styles.linkContainer}>
+            <TouchableOpacity onPress={() => navigation.navigate('AlreadyAccount')}>
+              <Text style={styles.linkText}>Already have an account?</Text>
+            </TouchableOpacity>
+          </View>
 
-      
-      
-      
-    </View>
+          <View style={styles.buttonWrapper}>
+            <Button title="Sign Up" onPress={handleSignUp} />
+          </View>
+        </View>
+      </TouchableWithoutFeedback>
+    </KeyboardAvoidingView>
   );
 };
 
@@ -61,13 +78,9 @@ const styles = StyleSheet.create({
     padding: 30,
   },
   buttonWrapper: {
-    position: 'absolute',
-    top: 500,         
-    left: 155,           
-
-  marginTop: 20, 
-},
-
+    marginTop: 20,
+    alignSelf: 'center',
+  },
   title: {
     fontSize: 24,
     marginBottom: 20,
@@ -81,15 +94,11 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   linkText: {
-    marginTop: 16,
     color: 'blue',
     textDecorationLine: 'underline',
   },
- linkContainer: {
-  position: 'absolute',
-  top: 430,         
-  left: 170,           
-  padding: 20,        
-  backgroundColor: 'transparent', 
-},
+  linkContainer: {
+    marginTop: 10,
+    alignItems: 'center',
+  },
 });
