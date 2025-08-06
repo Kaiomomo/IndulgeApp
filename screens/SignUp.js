@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, Alert } from 'react-native';
+import { View, Text, TextInput, Button, StyleSheet, Alert, TouchableOpacity } from 'react-native';
 import { auth } from '../FirebaseConfig';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
-const SignUp = () => {
+
+const SignUp = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
@@ -33,7 +34,19 @@ const SignUp = () => {
         style={styles.input}
         secureTextEntry
       />
-      <Button title="Sign Up" onPress={handleSignUp} />
+  <View style={styles.linkContainer}>
+  <TouchableOpacity onPress={() => navigation.navigate('AlreadyAccount')}>
+    <Text style={styles.linkText}>Already have an account?</Text>
+  </TouchableOpacity>
+</View>
+
+    <View style={styles.buttonWrapper}>
+  <Button title="Sign Up" onPress={handleSignUp} />
+</View>
+
+      
+      
+      
     </View>
   );
 };
@@ -45,11 +58,19 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: 30,
   },
+  buttonWrapper: {
+    position: 'absolute',
+    top: 500,         
+    left: 155,           
+
+  marginTop: 20, 
+},
+
   title: {
     fontSize: 24,
-    marginBottom: 24,
+    marginBottom: 20,
   },
   input: {
     width: '100%',
@@ -59,4 +80,16 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderRadius: 8,
   },
+  linkText: {
+    marginTop: 16,
+    color: 'blue',
+    textDecorationLine: 'underline',
+  },
+ linkContainer: {
+  position: 'absolute',
+  top: 430,         
+  left: 170,           
+  padding: 20,        
+  backgroundColor: 'transparent', 
+},
 });
