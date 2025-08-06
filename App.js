@@ -1,6 +1,8 @@
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import Profile from './screens/Profile';
+
 
 import HomeScreen from './screens/HomeScreen';
 import CreateGroup from './screens/CreateGroup';
@@ -19,6 +21,8 @@ const App = () => {
         <Stack.Screen name="JoinGroup" component={JoinGroup} />
         <Stack.Screen name="SignUp" component={SignUp} />
         <Stack.Screen name="AlreadyAccount" component={AlreadyAccount} /> 
+        <Stack.Screen name="Profile" component={Profile} />
+
       </Stack.Navigator>
     </NavigationContainer>
   );
