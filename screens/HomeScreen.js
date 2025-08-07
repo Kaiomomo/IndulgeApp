@@ -6,13 +6,13 @@ import { auth } from '../FirebaseConfig';
 const HomeScreen = ({ navigation }) => {
   const [user, setUser] = useState(null);
 
-  // Listen for login state changes
+  
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
     });
 
-    return () => unsubscribe(); // Clean up on unmount
+    return () => unsubscribe(); 
   }, []);
 
   const handleCreateGroup = () => {
@@ -25,7 +25,7 @@ const HomeScreen = ({ navigation }) => {
 
   const handleAuthButton = () => {
     if (user) {
-      navigation.navigate('Profile'); // Make sure Profile screen exists
+      navigation.navigate('Profile'); 
     } else {
       navigation.navigate('SignUp');
     }
@@ -33,7 +33,7 @@ const HomeScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      {/* Show user info in top-right if logged in */}
+      {}
       {user && (
         <View style={styles.profileContainer}>
           <Text style={styles.profileText}>
@@ -68,7 +68,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#fff',
     gap: 20,
-    paddingTop: 80, // makes room for the top-right profile
+    paddingTop: 80, 
   },
   profileContainer: {
     position: 'absolute',

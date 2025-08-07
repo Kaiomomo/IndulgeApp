@@ -3,7 +3,6 @@ import {
   View,
   Text,
   TextInput,
-  Button,
   StyleSheet,
   Alert,
   KeyboardAvoidingView,
@@ -11,6 +10,7 @@ import {
   ScrollView,
   TouchableWithoutFeedback,
   Keyboard,
+  TouchableOpacity,
 } from 'react-native';
 import { auth } from '../FirebaseConfig';
 import { signInWithEmailAndPassword } from 'firebase/auth';
@@ -18,6 +18,8 @@ import { signInWithEmailAndPassword } from 'firebase/auth';
 const AlreadyAccount = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+   const [showPassword, setShowPassword] = useState(false);
+  
 
   const handleLogin = async () => {
     try {
@@ -36,7 +38,7 @@ const AlreadyAccount = ({ navigation }) => {
     >
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <ScrollView contentContainerStyle={styles.container}>
-          <Text style={styles.title}>Log In</Text>
+          <Text style={styles.title}>Welcome Back</Text>
 
           <TextInput
             placeholder="Email"
@@ -46,16 +48,31 @@ const AlreadyAccount = ({ navigation }) => {
             keyboardType="email-address"
             autoCapitalize="none"
           />
-
+<View style={styles.passwordContainer}>
           <TextInput
             placeholder="Password"
             value={password}
             onChangeText={setPassword}
             style={styles.input}
-            secureTextEntry
+                 secureTextEntry={!showPassword}
           />
+          <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                        <Text style={styles.eyeText}>
+                          {showPassword ? '🙈' : '👁️'}
+                        </Text>
+                      </TouchableOpacity>
+          </View> 
 
-          <Button title="Log In" onPress={handleLogin} />
+          <TouchableOpacity style={styles.button} onPress={handleLogin} activeOpacity={0.8}>
+            <Text style={styles.buttonText}>Log In</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => navigation.navigate('ForgotPassword')}
+            style={styles.linkContainer}
+          >
+            <Text style={styles.linkText}>Forgot Password?</Text>
+          </TouchableOpacity>
         </ScrollView>
       </TouchableWithoutFeedback>
     </KeyboardAvoidingView>
@@ -68,19 +85,59 @@ const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
     justifyContent: 'center',
-    alignItems: 'center',
     padding: 30,
+    backgroundColor: '#fff',
   },
   title: {
-    fontSize: 24,
-    marginBottom: 24,
+    fontSize: 28,
+    fontWeight: 'bold',
+    marginBottom: 30,
+    textAlign: 'center',
+    color: '#333',
   },
   input: {
     width: '100%',
-    padding: 12,
+    padding: 14,
     borderWidth: 1,
     borderColor: '#ccc',
-    marginBottom: 16,
-    borderRadius: 8,
+    borderRadius: 10,
+    marginBottom: 20,
+    fontSize: 16,
+    backgroundColor: '#f9f9f9',
   },
+  button: {
+    backgroundColor: '#007bff',
+    paddingVertical: 16,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginTop: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 3 },
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 17,
+    fontWeight: '600',
+  },
+  linkContainer: {
+    marginTop: 20,
+    alignItems: 'center',
+  },
+  linkText: {
+    color: '#007bff',
+    fontSize: 15,
+    textDecorationLine: 'underline',
+  },
+  passwordContainer: {
+  flexDirection: 'row',
+  alignItems: 'center',
+},
+eyeText: {
+  fontSize: 18,
+  marginLeft: -50, 
+  marginTop:-20,
+},
 });
