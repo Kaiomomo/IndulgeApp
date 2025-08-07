@@ -9,6 +9,8 @@ import CreateGroup from './screens/CreateGroup';
 import JoinGroup from './screens/JoinGroup';
 import SignUp from './screens/SignUp';
 import AlreadyAccount from './screens/AlreadyAccount';
+import ForgotPassword from './screens/ForgotPassword';
+
 
 const Stack = createNativeStackNavigator();
 
@@ -22,6 +24,8 @@ const App = () => {
         <Stack.Screen name="SignUp" component={SignUp} />
         <Stack.Screen name="AlreadyAccount" component={AlreadyAccount} /> 
         <Stack.Screen name="Profile" component={Profile} />
+        <Stack.Screen name="ForgotPassword" component={ForgotPassword} />
+
 
       </Stack.Navigator>
     </NavigationContainer>
