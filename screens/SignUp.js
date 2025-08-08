@@ -29,7 +29,7 @@ const SignUp = ({ navigation }) => {
       setPassword('');
       navigation.navigate('Home');
     } catch (error) {
-      Alert.alert('please use @','password must be more then 6 characters');
+      Alert.alert('please use @','password must be more then 6 characters,');
     }
   };
 
