@@ -78,7 +78,20 @@ const CreateGroup = () => {
       Alert.alert('Validation', 'Please enter a group name.');
       return;
     }
+
     try {
+        const q =query( 
+
+          collection(db,'groups'),
+          where('name', "==", groupName.trim())
+        );
+      const existingGroups = await getDocs(q);
+
+      if (!existingGroups.empty){
+        Alert.alert("Duplicate name ", 'Please choose another group name ')
+        return;
+      }
+   
       const memberList = members
         .split(',')
         .map(m => m.trim())
