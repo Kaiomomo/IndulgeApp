@@ -4,7 +4,7 @@ import { collection, query, where, getDocs, updateDoc, doc, arrayUnion } from 'f
 import { getAuth } from 'firebase/auth';
 import { db } from '../FirebaseConfig'; 
 
-const JoinGroup = () => {
+const JoinGroup = ({ navigation }) => {
   const auth = getAuth();
   const currentUser = auth.currentUser;
 
@@ -16,8 +16,7 @@ const JoinGroup = () => {
     if (!groupCode.trim()) {
       Alert.alert('Validation', 'Please enter a group code.');
       return;
-    }
-
+    } 
     setLoading(true);
     try {
       const q = query(collection(db, 'groups'), where('code', '==', groupCode.trim()));
@@ -42,15 +41,7 @@ const JoinGroup = () => {
       Alert.alert('Error', 'You must be logged in to join a group.');
       return;
     }
-
-    Alert.alert(
-      'Join Group',
-      `Are you sure you want to join "${groupData.name}"?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Join', onPress: joinConfirmed }
-      ]
-    );
+    joinConfirmed();
   };
 
   const joinConfirmed = async () => {
@@ -62,9 +53,11 @@ const JoinGroup = () => {
           username: currentUser.displayName || 'Anonymous'
         })
       });
-      Alert.alert('Success', `You have joined "${groupData.name}"`);
+
+      // Reset state and navigate back to HomeScreen (no alert)
       setGroupData(null);
       setGroupCode('');
+      navigation.navigate('Home');
     } catch (error) {
       console.error(error);
       Alert.alert('Error', 'Could not join the group.');
