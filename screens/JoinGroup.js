@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Alert, StyleSheet, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TextInput, TouchableOpacity, Alert, StyleSheet, ActivityIndicator, FlatList } from 'react-native';
 import { collection, query, where, getDocs, updateDoc, doc, arrayUnion } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { db } from '../FirebaseConfig'; 
@@ -10,24 +10,47 @@ const JoinGroup = ({ navigation }) => {
 
   const [groupCode, setGroupCode] = useState('');
   const [loading, setLoading] = useState(false);
-  const [groupData, setGroupData] = useState(null);
+  const [groups, setGroups] = useState([]);
+  const [filteredGroups, setFilteredGroups] = useState([]);
 
+  // Fetch all groups on mount
+  useEffect(() => {
+    const fetchGroups = async () => {
+      setLoading(true);
+      try {
+        const snapshot = await getDocs(collection(db, 'groups'));
+        const allGroups = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setGroups(allGroups);
+        setFilteredGroups(allGroups); // show all initially
+      } catch (error) {
+        console.error(error);
+        Alert.alert('Error', 'Could not load groups.');
+      }
+      setLoading(false);
+    };
+
+    fetchGroups();
+  }, []);
+
+  // Search for a specific group code
   const handleSearchGroup = async () => {
     if (!groupCode.trim()) {
-      Alert.alert('Validation', 'Please enter a group code.');
+      // Reset to all groups if input is empty
+      setFilteredGroups(groups);
       return;
-    } 
+    }
+
     setLoading(true);
     try {
       const q = query(collection(db, 'groups'), where('code', '==', groupCode.trim()));
       const querySnapshot = await getDocs(q);
 
       if (querySnapshot.empty) {
-        setGroupData(null);
+        setFilteredGroups([]);
         Alert.alert('Not Found', 'No group found with that code.');
       } else {
-        const groupDoc = querySnapshot.docs[0];
-        setGroupData({ id: groupDoc.id, ...groupDoc.data() });
+        const searchResults = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setFilteredGroups(searchResults);
       }
     } catch (error) {
       console.error(error);
@@ -36,27 +59,33 @@ const JoinGroup = ({ navigation }) => {
     setLoading(false);
   };
 
-  const handleJoinGroup = () => {
+  // Join group with one-group restriction
+  const handleJoinGroup = async (group) => {
     if (!currentUser) {
       Alert.alert('Error', 'You must be logged in to join a group.');
       return;
     }
-    joinConfirmed();
-  };
 
-  const joinConfirmed = async () => {
     try {
-      const groupRef = doc(db, 'groups', groupData.id);
+      // 🔎 Check if user already in a group using membersUIDs
+      const q = query(collection(db, 'groups'), where('membersUIDs', 'array-contains', currentUser.uid));
+      const snapshot = await getDocs(q);
+
+      if (!snapshot.empty) {
+        Alert.alert('Error', 'You are already a member of a group. You cannot join another one.');
+        return;
+      }
+
+      // ✅ Add user to both members + membersUIDs
+      const groupRef = doc(db, 'groups', group.id);
       await updateDoc(groupRef, {
         members: arrayUnion({
           uid: currentUser.uid,
           username: currentUser.displayName || 'Anonymous'
-        })
+        }),
+        membersUIDs: arrayUnion(currentUser.uid)
       });
 
-      // Reset state and navigate back to HomeScreen (no alert)
-      setGroupData(null);
-      setGroupCode('');
       navigation.navigate('Home');
     } catch (error) {
       console.error(error);
@@ -77,15 +106,21 @@ const JoinGroup = ({ navigation }) => {
         {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Search</Text>}
       </TouchableOpacity>
 
-      {groupData && (
-        <View style={styles.groupCard}>
-          <Text style={styles.groupName}>{groupData.name}</Text>
-          <Text style={styles.groupInfo}>Code: {groupData.code}</Text>
-          <TouchableOpacity style={styles.joinButton} onPress={handleJoinGroup}>
-            <Text style={styles.joinText}>Join Group</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+      {/* Show groups list */}
+      <FlatList
+        data={filteredGroups}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => (
+          <View style={styles.groupCard}>
+            <Text style={styles.groupName}>{item.name}</Text>
+            <Text style={styles.groupInfo}>Code: {item.code}</Text>
+            <TouchableOpacity style={styles.joinButton} onPress={() => handleJoinGroup(item)}>
+              <Text style={styles.joinText}>Join Group</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        ListEmptyComponent={!loading && <Text style={{ textAlign: 'center', marginTop: 20 }}>No groups found</Text>}
+      />
     </View>
   );
 };
@@ -133,7 +168,8 @@ const styles = StyleSheet.create({
     shadowColor: '#000',
     shadowOpacity: 0.1,
     shadowRadius: 8,
-    elevation: 4
+    elevation: 4,
+    marginBottom: 15
   },
   groupName: {
     fontSize: 20,
