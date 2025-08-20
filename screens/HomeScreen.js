@@ -57,7 +57,7 @@ const HomeScreen = ({ navigation }) => {
 
       {/* Button with the name of the group the user joined */}
       {joinedGroup && (
-        <TouchableOpacity style={styles.button} onPress={() => {}}>
+        <TouchableOpacity style={styles.button} onPress={() => navigation.navigate('GroupEdit',{group: joinedGroup})}>
           <Text style={styles.buttonText}>{joinedGroup.name}</Text>
         </TouchableOpacity>
       )}
