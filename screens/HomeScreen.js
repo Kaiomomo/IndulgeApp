@@ -1,19 +1,20 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { onAuthStateChanged } from 'firebase/auth';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, updateDoc, arrayUnion, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../FirebaseConfig';
+import { LinearGradient } from 'expo-linear-gradient'; // ✅ requires expo-linear-gradient
 
 const HomeScreen = ({ navigation }) => {
   const [user, setUser] = useState(null);
   const [joinedGroup, setJoinedGroup] = useState(null);
+  const [toiletUsers, setToiletUsers] = useState([]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
 
       if (currentUser) {
-        // Check if user is in any group
         const q = query(
           collection(db, 'groups'),
           where('members', 'array-contains', {
@@ -25,9 +26,21 @@ const HomeScreen = ({ navigation }) => {
         const snapshot = await getDocs(q);
         if (!snapshot.empty) {
           const groupDoc = snapshot.docs[0];
-          setJoinedGroup({ id: groupDoc.id, ...groupDoc.data() });
+          const groupData = { id: groupDoc.id, ...groupDoc.data() };
+          setJoinedGroup(groupData);
+
+          const groupRef = doc(db, 'groups', groupDoc.id);
+          const unsubGroup = onSnapshot(groupRef, (snap) => {
+            if (snap.exists()) {
+              const data = snap.data();
+              setToiletUsers(data.toiletStatus || []);
+            }
+          });
+
+          return () => unsubGroup();
         } else {
           setJoinedGroup(null);
+          setToiletUsers([]);
         }
       }
     });
@@ -35,89 +48,161 @@ const HomeScreen = ({ navigation }) => {
     return () => unsubscribe();
   }, []);
 
-  const handleCreateGroup = () => navigation.navigate('CreateGroup');
+  const handleToiletPress = async () => {
+    if (!joinedGroup || !user) return;
 
-  const handleJoinGroup = () => navigation.navigate('JoinGroup');
-
-  const handleAuthButton = () => {
-    if (user) {
-      navigation.navigate('Profile');
-    } else {
-      navigation.navigate('SignUp');
+    try {
+      const groupRef = doc(db, 'groups', joinedGroup.id);
+      await updateDoc(groupRef, {
+        toiletStatus: arrayUnion({
+          uid: user.uid,
+          username: user.displayName || 'Anonymous',
+          status: 'inToilet',
+          timestamp: Date.now(),
+        }),
+      });
+    } catch (error) {
+      console.error('Error updating toilet status:', error);
     }
   };
 
   return (
-    <View style={styles.container}>
-      {user && (
-        <View style={styles.profileContainer}>
-          <Text style={styles.profileText}>{user.displayName || user.email}</Text>
-        </View>
-      )}
+    <LinearGradient colors={['#e6f0ff', '#ffffff']} style={styles.gradient}>
+      <ScrollView contentContainerStyle={styles.container}>
+        {user && (
+          <View style={styles.profileContainer}>
+            <Text style={styles.profileText}>{user.displayName || user.email}</Text>
+          </View>
+        )}
 
-      {/* Button with the name of the group the user joined */}
-      {joinedGroup && (
-        <TouchableOpacity style={styles.button} onPress={() => navigation.navigate('GroupEdit',{group: joinedGroup})}>
-          <Text style={styles.buttonText}>{joinedGroup.name}</Text>
+        {/* 🚽 Toilet Notifications */}
+        {toiletUsers.length > 0 && (
+          <View style={styles.toiletBanner}>
+            <Text style={styles.toiletBannerTitle}>🚽 Toilet Alert</Text>
+            {toiletUsers.map((u) => (
+              <Text key={u.uid} style={styles.toiletText}>
+                {u.username} is in the toilet...
+              </Text>
+            ))}
+          </View>
+        )}
+
+        {joinedGroup && (
+          <TouchableOpacity
+            style={styles.button}
+            onPress={() => navigation.navigate('GroupEdit', { group: joinedGroup })}
+          >
+            <Text style={styles.buttonText}>{joinedGroup.name}</Text>
+          </TouchableOpacity>
+        )}
+
+        <TouchableOpacity style={styles.button} onPress={() => navigation.navigate('CreateGroup')}>
+          <Text style={styles.buttonText}>➕ Create Group</Text>
         </TouchableOpacity>
-      )}
 
-      <TouchableOpacity style={styles.button} onPress={handleCreateGroup}>
-        <Text style={styles.buttonText}>Create Group</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity style={styles.button} onPress={handleJoinGroup}>
-        <Text style={styles.buttonText}>Join Group</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity style={styles.button} onPress={handleAuthButton}>
-        <Text style={styles.buttonText}>{user ? 'Profile' : 'Sign Up'}</Text>
-      </TouchableOpacity>
-
-      {/* Below-buttons 💩 button */}
-      {joinedGroup && (
-        <TouchableOpacity style={styles.button} onPress={() => {}}>
-          <Text style={styles.buttonText}>💩</Text>
+        <TouchableOpacity style={styles.button} onPress={() => navigation.navigate('JoinGroup')}>
+          <Text style={styles.buttonText}>👥 Join Group</Text>
         </TouchableOpacity>
-      )}
-    </View>
+
+        <TouchableOpacity style={styles.button} onPress={() => navigation.navigate(user ? 'Profile' : 'SignUp')}>
+          <Text style={styles.buttonText}>{user ? '👤 Profile' : '📝 Sign Up'}</Text>
+        </TouchableOpacity>
+
+        {joinedGroup && (
+          <TouchableOpacity style={styles.toiletButton} onPress={handleToiletPress}>
+            <Text style={styles.toiletButtonText}>💩 Toilet Break</Text>
+          </TouchableOpacity>
+        )}
+      </ScrollView>
+    </LinearGradient>
   );
 };
 
 export default HomeScreen;
 
 const styles = StyleSheet.create({
-  container: {
+  gradient: {
     flex: 1,
+  },
+  container: {
+    flexGrow: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    paddingVertical: 40,
     gap: 20,
-    paddingTop: 80,
   },
   profileContainer: {
     position: 'absolute',
-    top: 40,
+    top: 50,
     right: 20,
-    backgroundColor: '#f0f0f0',
-    padding: 8,
-    borderRadius: 8,
+    backgroundColor: '#ffffffcc',
+    padding: 10,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
   },
   profileText: {
-    fontSize: 14,
+    fontSize: 15,
     color: '#333',
-    fontWeight: 'bold',
+    fontWeight: '600',
   },
   button: {
-    backgroundColor: '#007bff',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-    minWidth: 200,
+    backgroundColor: '#4da6ff',
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+    borderRadius: 16,
+    minWidth: 240,
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
   },
   buttonText: {
     color: '#fff',
+    fontSize: 17,
+    fontWeight: '600',
+  },
+  toiletButton: {
+    backgroundColor: '#ff6666',
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+    borderRadius: 20,
+    minWidth: 240,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+  },
+  toiletButtonText: {
+    color: '#fff',
+    fontSize: 17,
+    fontWeight: '700',
+  },
+  toiletBanner: {
+    backgroundColor: '#fff8e6',
+    borderLeftWidth: 5,
+    borderLeftColor: '#ffcc00',
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 20,
+    width: '90%',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  toiletBannerTitle: {
     fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 6,
+    color: '#444',
+  },
+  toiletText: {
+    fontSize: 15,
+    color: '#555',
   },
 });
