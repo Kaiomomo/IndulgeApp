@@ -9,6 +9,7 @@ const HomeScreen = ({ navigation }) => {
   const [user, setUser] = useState(null);
   const [joinedGroup, setJoinedGroup] = useState(null);
   const [toiletUsers, setToiletUsers] = useState([]);
+  const [isOnToilet, setIsOnToilet] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -33,7 +34,10 @@ const HomeScreen = ({ navigation }) => {
           const unsubGroup = onSnapshot(groupRef, (snap) => {
             if (snap.exists()) {
               const data = snap.data();
-              setToiletUsers(data.toiletStatus || []);
+              const list = data.toiletStatus || [];
+              setToiletUsers(list);
+              // check if this user is already marked as in toilet
+              setIsOnToilet(list.some((u) => u.uid === currentUser.uid));
             }
           });
 
@@ -41,6 +45,7 @@ const HomeScreen = ({ navigation }) => {
         } else {
           setJoinedGroup(null);
           setToiletUsers([]);
+          setIsOnToilet(false);
         }
       }
     });
@@ -48,19 +53,29 @@ const HomeScreen = ({ navigation }) => {
     return () => unsubscribe();
   }, []);
 
-  const handleToiletPress = async () => {
+  const handleToiletToggle = async () => {
     if (!joinedGroup || !user) return;
 
+    const groupRef = doc(db, 'groups', joinedGroup.id);
+
     try {
-      const groupRef = doc(db, 'groups', joinedGroup.id);
-      await updateDoc(groupRef, {
-        toiletStatus: arrayUnion({
-          uid: user.uid,
-          username: user.displayName || 'Anonymous',
-          status: 'inToilet',
-          timestamp: Date.now(),
-        }),
-      });
+      if (!isOnToilet) {
+        // 🚽 Add user to toilet status
+        await updateDoc(groupRef, {
+          toiletStatus: arrayUnion({
+            uid: user.uid,
+            username: user.displayName || 'Anonymous',
+            status: 'inToilet',
+            timestamp: Date.now(),
+          }),
+        });
+      } else {
+        // ✅ Remove user by filtering out their uid
+        const updatedList = toiletUsers.filter((u) => u.uid !== user.uid);
+        await updateDoc(groupRef, {
+          toiletStatus: updatedList,
+        });
+      }
     } catch (error) {
       console.error('Error updating toilet status:', error);
     }
@@ -108,9 +123,15 @@ const HomeScreen = ({ navigation }) => {
           <Text style={styles.buttonText}>{user ? '👤 Profile' : '📝 Sign Up'}</Text>
         </TouchableOpacity>
 
+        {/* 🚽 Toilet Toggle Button */}
         {joinedGroup && (
-          <TouchableOpacity style={styles.toiletButton} onPress={handleToiletPress}>
-            <Text style={styles.toiletButtonText}>💩 Toilet Break</Text>
+          <TouchableOpacity
+            style={[styles.toiletButton, isOnToilet && styles.finishedButton]}
+            onPress={handleToiletToggle}
+          >
+            <Text style={styles.toiletButtonText}>
+              {isOnToilet ? '✅ Finished' : '💩 Toilet Break'}
+            </Text>
           </TouchableOpacity>
         )}
       </ScrollView>
@@ -176,6 +197,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 3 },
+  },
+  finishedButton: {
+    backgroundColor: '#4CAF50', // ✅ green when finished
   },
   toiletButtonText: {
     color: '#fff',
