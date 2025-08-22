@@ -1,21 +1,41 @@
+// HomeScreen.js
 import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { onAuthStateChanged } from 'firebase/auth';
 import { collection, query, where, getDocs, doc, updateDoc, arrayUnion, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../FirebaseConfig';
-import { LinearGradient } from 'expo-linear-gradient'; // ✅ requires expo-linear-gradient
+import { LinearGradient } from 'expo-linear-gradient';
+
+// ⬇️ NEW imports for countdown
+import Svg, { Circle } from 'react-native-svg';
+import Animated, {
+  useSharedValue,
+  useAnimatedProps,
+  withTiming,
+  Easing,
+} from 'react-native-reanimated';
+
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 const HomeScreen = ({ navigation }) => {
   const [user, setUser] = useState(null);
   const [joinedGroup, setJoinedGroup] = useState(null);
   const [toiletUsers, setToiletUsers] = useState([]);
   const [isOnToilet, setIsOnToilet] = useState(false);
+  const [endTime, setEndTime] = useState(null);
+  const [remainingTime, setRemainingTime] = useState(0); // ⬅️ new numeric countdown
+
+  // ⏳ SVG circle setup
+  const radius = 40;
+  const circumference = 2 * Math.PI * radius;
+  const progress = useSharedValue(circumference);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setUser(currentUser);
-
       if (currentUser) {
+        await currentUser.reload();
+        setUser(auth.currentUser);
+
         const q = query(
           collection(db, 'groups'),
           where('members', 'array-contains', {
@@ -36,8 +56,18 @@ const HomeScreen = ({ navigation }) => {
               const data = snap.data();
               const list = data.toiletStatus || [];
               setToiletUsers(list);
-              // check if this user is already marked as in toilet
-              setIsOnToilet(list.some((u) => u.uid === currentUser.uid));
+
+              const me = list.find((u) => u.uid === currentUser.uid);
+              if (me) {
+                setIsOnToilet(true);
+                if (me.expiresAt) {
+                  setEndTime(me.expiresAt);
+                }
+              } else {
+                setIsOnToilet(false);
+                setEndTime(null);
+                setRemainingTime(0);
+              }
             }
           });
 
@@ -46,31 +76,70 @@ const HomeScreen = ({ navigation }) => {
           setJoinedGroup(null);
           setToiletUsers([]);
           setIsOnToilet(false);
+          setEndTime(null);
+          setRemainingTime(0);
         }
+      } else {
+        setUser(null);
+        setJoinedGroup(null);
+        setToiletUsers([]);
+        setIsOnToilet(false);
+        setEndTime(null);
+        setRemainingTime(0);
       }
     });
 
     return () => unsubscribe();
   }, []);
 
-  const handleToiletToggle = async () => {
-    if (!joinedGroup || !user) return;
+  // ⏳ Animate progress + numeric countdown
+  useEffect(() => {
+    let interval;
+    if (isOnToilet && endTime) {
+      const remaining = endTime - Date.now();
+      progress.value = withTiming(0, {
+        duration: remaining,
+        easing: Easing.linear,
+      });
 
+      // ⏱ update numeric countdown every second
+      interval = setInterval(() => {
+        const left = Math.max(0, endTime - Date.now());
+        setRemainingTime(left);
+        if (left <= 0) {
+          clearInterval(interval);
+          handleToiletToggle(true); // auto-finish
+        }
+      }, 1000);
+    } else {
+      progress.value = circumference;
+      setRemainingTime(0);
+    }
+
+    return () => clearInterval(interval);
+  }, [isOnToilet, endTime]);
+
+  const animatedProps = useAnimatedProps(() => ({
+    strokeDashoffset: progress.value,
+  }));
+
+  const handleToiletToggle = async (auto = false) => {
+    if (!joinedGroup || !user) return;
     const groupRef = doc(db, 'groups', joinedGroup.id);
 
     try {
       if (!isOnToilet) {
-        // 🚽 Add user to toilet status
+        const expiry = Date.now() + 10 * 60 * 1000; // ⬅️ 10 minutes
         await updateDoc(groupRef, {
           toiletStatus: arrayUnion({
             uid: user.uid,
             username: user.displayName || 'Anonymous',
             status: 'inToilet',
             timestamp: Date.now(),
+            expiresAt: expiry,
           }),
         });
       } else {
-        // ✅ Remove user by filtering out their uid
         const updatedList = toiletUsers.filter((u) => u.uid !== user.uid);
         await updateDoc(groupRef, {
           toiletStatus: updatedList,
@@ -79,6 +148,14 @@ const HomeScreen = ({ navigation }) => {
     } catch (error) {
       console.error('Error updating toilet status:', error);
     }
+  };
+
+  // ⏱ Format countdown (mm:ss)
+  const formatTime = (ms) => {
+    const totalSeconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
   };
 
   return (
@@ -123,16 +200,58 @@ const HomeScreen = ({ navigation }) => {
           <Text style={styles.buttonText}>{user ? '👤 Profile' : '📝 Sign Up'}</Text>
         </TouchableOpacity>
 
-        {/* 🚽 Toilet Toggle Button */}
+        {/* 🚽 Toilet Toggle Button with Countdown */}
         {joinedGroup && (
-          <TouchableOpacity
-            style={[styles.toiletButton, isOnToilet && styles.finishedButton]}
-            onPress={handleToiletToggle}
-          >
-            <Text style={styles.toiletButtonText}>
-              {isOnToilet ? '✅ Finished' : '💩 Toilet Break'}
-            </Text>
-          </TouchableOpacity>
+          <View style={{ alignItems: 'center' }}>
+            <TouchableOpacity
+              style={[styles.toiletButton, isOnToilet && styles.finishedButton]}
+              onPress={() => handleToiletToggle()}
+            >
+              <Text style={styles.toiletButtonText}>
+                {isOnToilet ? '✅ Finished' : '💩 Toilet Break'}
+              </Text>
+            </TouchableOpacity>
+
+            {isOnToilet && (
+              <View style={{ marginTop: 20, alignItems: 'center' }}>
+                <Svg height="120" width="120">
+                  <Circle
+                    cx="60"
+                    cy="60"
+                    r={radius}
+                    stroke="#ddd"
+                    strokeWidth="8"
+                    fill="none"
+                  />
+                  <AnimatedCircle
+                    cx="60"
+                    cy="60"
+                    r={radius}
+                    stroke="#4CAF50"
+                    strokeWidth="8"
+                    strokeDasharray={circumference}
+                    animatedProps={animatedProps}
+                    fill="none"
+                    strokeLinecap="round"
+                  />
+                  <Text
+                    style={{
+                      position: 'absolute',
+                      top: 45,
+                      left: 0,
+                      right: 0,
+                      textAlign: 'center',
+                      fontSize: 20,
+                      fontWeight: 'bold',
+                      color: '#333',
+                    }}
+                  >
+                    {formatTime(remainingTime)}
+                  </Text>
+                </Svg>
+              </View>
+            )}
+          </View>
         )}
       </ScrollView>
     </LinearGradient>
@@ -193,13 +312,14 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     minWidth: 240,
     alignItems: 'center',
+    justifyContent: 'center',
     shadowColor: '#000',
     shadowOpacity: 0.15,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 3 },
   },
   finishedButton: {
-    backgroundColor: '#4CAF50', // ✅ green when finished
+    backgroundColor: '#4CAF50',
   },
   toiletButtonText: {
     color: '#fff',

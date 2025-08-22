@@ -56,6 +56,7 @@ const Profile = ({ navigation }) => {
       await updateProfile(auth.currentUser, { displayName: newUsername });
       await auth.currentUser.reload();
       const updatedUser = auth.currentUser;
+      
       navigation.navigate('Home', { updatedName: updatedUser.displayName });
       Alert.alert('Success', 'Username updated successfully!');
       setIsEditing(false);
