@@ -1,6 +1,6 @@
 // HomeScreen.js
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
 import { onAuthStateChanged } from 'firebase/auth';
 import { collection, query, where, getDocs, doc, updateDoc, arrayUnion, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../FirebaseConfig';
@@ -106,9 +106,38 @@ const HomeScreen = ({ navigation }) => {
       interval = setInterval(() => {
         const left = Math.max(0, endTime - Date.now());
         setRemainingTime(left);
+
         if (left <= 0) {
           clearInterval(interval);
-          handleToiletToggle(true); // auto-finish
+
+          // 👇 Show alert when timer finishes
+          Alert.alert(
+            "⏳ Time’s Up!",
+            "Are you still in the toilet?",
+            [
+              {
+                text: "No, I’m done ✅",
+                onPress: () => handleToiletToggle(true), // finish
+                style: "destructive",
+              },
+              {
+                text: "Yes, still here 🚽",
+                onPress: () => {
+                  // extend 5 minutes
+                  const newExpiry = Date.now() + 10 * 60 * 1000;
+                  setEndTime(newExpiry);
+
+                  // update in Firestore
+                  const groupRef = doc(db, "groups", joinedGroup.id);
+                  const updatedList = toiletUsers.map((u) =>
+                    u.uid === user.uid ? { ...u, expiresAt: newExpiry } : u
+                  );
+                  updateDoc(groupRef, { toiletStatus: updatedList });
+                },
+              },
+            ],
+            { cancelable: false }
+          );
         }
       }, 1000);
     } else {
@@ -208,7 +237,7 @@ const HomeScreen = ({ navigation }) => {
               onPress={() => handleToiletToggle()}
             >
               <Text style={styles.toiletButtonText}>
-                {isOnToilet ? '✅ Finished' : '💩 Toilet Break'}
+                {isOnToilet ? '✅ Finished' : '💩 Indulge'}
               </Text>
             </TouchableOpacity>
 
