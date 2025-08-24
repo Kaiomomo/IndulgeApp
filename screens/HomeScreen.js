@@ -229,6 +229,10 @@ const HomeScreen = ({ navigation }) => {
           <Text style={styles.buttonText}>{user ? '👤 Profile' : '📝 Sign Up'}</Text>
         </TouchableOpacity>
 
+        <TouchableOpacity style={styles.discord} onPress={() => navigation.navigate ()}>
+          <Text style={styles.buttonText}>💬 Discord</Text>
+        </TouchableOpacity>
+
         {/* 🚽 Toilet Toggle Button with Countdown */}
         {joinedGroup && (
           <View style={{ alignItems: 'center' }}>
@@ -316,6 +320,19 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#333',
     fontWeight: '600',
+  },
+
+  discord:{
+     backgroundColor: '#5865F2',
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+    borderRadius: 16,
+    minWidth: 240,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
   },
   button: {
     backgroundColor: '#4da6ff',
