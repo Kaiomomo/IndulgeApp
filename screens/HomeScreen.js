@@ -5,7 +5,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { collection, query, where, getDocs, doc, updateDoc, arrayUnion, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../FirebaseConfig';
 import { LinearGradient } from 'expo-linear-gradient';
-
+import { Linking } from 'react-native';
 // ⬇️ NEW imports for countdown
 import Svg, { Circle } from 'react-native-svg';
 import Animated, {
@@ -229,8 +229,8 @@ const HomeScreen = ({ navigation }) => {
           <Text style={styles.buttonText}>{user ? '👤 Profile' : '📝 Sign Up'}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.discord} onPress={() => navigation.navigate ()}>
-          <Text style={styles.buttonText}>💬 Discord</Text>
+        <TouchableOpacity style={styles.discord} onPress={() => Linking.openURL ("https://discord.gg/QydjNauSaV")}>
+          <Text style={styles.buttonText}>💬 Discord</Text> 
         </TouchableOpacity>
 
         {/* 🚽 Toilet Toggle Button with Countdown */}
