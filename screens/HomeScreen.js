@@ -6,8 +6,9 @@ import { collection, query, where, getDocs, doc, updateDoc, arrayUnion, onSnapsh
 import { auth, db } from '../FirebaseConfig';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Linking } from 'react-native';
-// ⬇️ NEW imports for countdown
 import Svg, { Circle } from 'react-native-svg';
+import { useRoute } from '@react-navigation/native'; 
+
 import Animated, {
   useSharedValue,
   useAnimatedProps,
@@ -18,17 +19,26 @@ import Animated, {
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 const HomeScreen = ({ navigation }) => {
+  const route = useRoute(); 
   const [user, setUser] = useState(null);
   const [joinedGroup, setJoinedGroup] = useState(null);
   const [toiletUsers, setToiletUsers] = useState([]);
   const [isOnToilet, setIsOnToilet] = useState(false);
   const [endTime, setEndTime] = useState(null);
-  const [remainingTime, setRemainingTime] = useState(0); // ⬅️ new numeric countdown
+  const [remainingTime, setRemainingTime] = useState(0); // ⬅️ numeric countdown
 
   // ⏳ SVG circle setup
   const radius = 40;
   const circumference = 2 * Math.PI * radius;
   const progress = useSharedValue(circumference);
+
+  // ✅ FIXED: Alert effect moved OUTSIDE of onAuthStateChanged
+  useEffect(() => {
+    if (route.params?.showUsernameAlert) {
+      Alert.alert("Please go to profile and enter a username");
+      navigation.setParams({ showUsernameAlert: false });
+    }
+  }, [route.params]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -37,12 +47,10 @@ const HomeScreen = ({ navigation }) => {
         setUser(auth.currentUser);
 
         const q = query(
-          collection(db, 'groups'),
-          where('members', 'array-contains', {
-            uid: currentUser.uid,
-            username: currentUser.displayName || 'Anonymous',
-          })
-        );
+  collection(db, 'groups'),
+  where('membersUIDs', 'array-contains', currentUser.uid)
+);
+
 
         const snapshot = await getDocs(q);
         if (!snapshot.empty) {
@@ -102,32 +110,26 @@ const HomeScreen = ({ navigation }) => {
         easing: Easing.linear,
       });
 
-      // ⏱ update numeric countdown every second
       interval = setInterval(() => {
         const left = Math.max(0, endTime - Date.now());
         setRemainingTime(left);
 
         if (left <= 0) {
           clearInterval(interval);
-
-          // 👇 Show alert when timer finishes
           Alert.alert(
             "⏳ Time’s Up!",
             "Are you still in the toilet?",
             [
               {
                 text: "No, I’m done ✅",
-                onPress: () => handleToiletToggle(true), // finish
+                onPress: () => handleToiletToggle(true),
                 style: "destructive",
               },
               {
                 text: "Yes, still here 🚽",
                 onPress: () => {
-                  // extend 5 minutes
                   const newExpiry = Date.now() + 10 * 60 * 1000;
                   setEndTime(newExpiry);
-
-                  // update in Firestore
                   const groupRef = doc(db, "groups", joinedGroup.id);
                   const updatedList = toiletUsers.map((u) =>
                     u.uid === user.uid ? { ...u, expiresAt: newExpiry } : u
@@ -158,7 +160,7 @@ const HomeScreen = ({ navigation }) => {
 
     try {
       if (!isOnToilet) {
-        const expiry = Date.now() + 10 * 60 * 1000; // ⬅️ 10 minutes
+        const expiry = Date.now() + 10 * 60 * 1000;
         await updateDoc(groupRef, {
           toiletStatus: arrayUnion({
             uid: user.uid,
@@ -179,7 +181,6 @@ const HomeScreen = ({ navigation }) => {
     }
   };
 
-  // ⏱ Format countdown (mm:ss)
   const formatTime = (ms) => {
     const totalSeconds = Math.floor(ms / 1000);
     const minutes = Math.floor(totalSeconds / 60);
@@ -196,7 +197,6 @@ const HomeScreen = ({ navigation }) => {
           </View>
         )}
 
-        {/* 🚽 Toilet Notifications */}
         {toiletUsers.length > 0 && (
           <View style={styles.toiletBanner}>
             <Text style={styles.toiletBannerTitle}>🚽 Toilet Alert</Text>
@@ -229,11 +229,10 @@ const HomeScreen = ({ navigation }) => {
           <Text style={styles.buttonText}>{user ? '👤 Profile' : '📝 Sign Up'}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.discord} onPress={() => Linking.openURL ("https://discord.gg/QydjNauSaV")}>
+        <TouchableOpacity style={styles.discord} onPress={() => Linking.openURL("https://discord.gg/QydjNauSaV")}>
           <Text style={styles.buttonText}>💬 Discord</Text> 
         </TouchableOpacity>
 
-        {/* 🚽 Toilet Toggle Button with Countdown */}
         {joinedGroup && (
           <View style={{ alignItems: 'center' }}>
             <TouchableOpacity
@@ -321,9 +320,8 @@ const styles = StyleSheet.create({
     color: '#333',
     fontWeight: '600',
   },
-
-  discord:{
-     backgroundColor: '#5865F2',
+  discord: {
+    backgroundColor: '#5865F2',
     paddingVertical: 14,
     paddingHorizontal: 28,
     borderRadius: 16,
