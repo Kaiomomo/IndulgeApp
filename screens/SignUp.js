@@ -24,10 +24,9 @@ const SignUp = ({ navigation }) => {
   const handleSignUp = async () => {
     try {
       await createUserWithEmailAndPassword(auth, email, password);
-      Alert.alert('Success!');
       setEmail('');
       setPassword('');
-      navigation.navigate('Home');
+      navigation.navigate('Home',{showUsernameAlert:true});
     } catch (error) {
       Alert.alert('please use @','password must be more then 6 characters,');
     }
