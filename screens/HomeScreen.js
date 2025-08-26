@@ -204,9 +204,13 @@ const HomeScreen = ({ navigation }) => {
   return (
     <LinearGradient colors={["#e6f0ff", "#ffffff"]} style={styles.gradient}>
       <ScrollView contentContainerStyle={styles.container}>
-        {/* Profile Badge */}
+        {/* Profile Badge as Button */}
         {user && (
-          <View style={styles.profileContainer}>
+          <TouchableOpacity
+            onPress={() => navigation.navigate("Profile")}
+            style={styles.profileContainer}
+            activeOpacity={0.8}
+          >
             <View style={styles.avatarCircle}>
               <Text style={styles.avatarText}>
                 {user.displayName
@@ -217,7 +221,7 @@ const HomeScreen = ({ navigation }) => {
             <Text style={styles.profileText}>
               {user.displayName || user.email}
             </Text>
-          </View>
+          </TouchableOpacity>
         )}
 
         {/* Toilet Alert Banner */}
@@ -274,9 +278,7 @@ const HomeScreen = ({ navigation }) => {
         </TouchableOpacity>
 
         <TouchableOpacity
-          onPress={() =>
-            navigation.navigate(user ? "Profile" : "SignUp")
-          }
+          onPress={() => navigation.navigate(user ? "Profile" : "SignUp")}
           activeOpacity={0.85}
         >
           <LinearGradient
