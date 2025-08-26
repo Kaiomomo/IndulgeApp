@@ -1,38 +1,52 @@
 // HomeScreen.js
-import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
-import { onAuthStateChanged } from 'firebase/auth';
-import { collection, query, where, getDocs, doc, updateDoc, arrayUnion, onSnapshot } from 'firebase/firestore';
-import { auth, db } from '../FirebaseConfig';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Linking } from 'react-native';
-import Svg, { Circle } from 'react-native-svg';
-import { useRoute } from '@react-navigation/native'; 
-
+import React, { useEffect, useState } from "react";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  ScrollView,
+  Alert,
+} from "react-native";
+import { onAuthStateChanged } from "firebase/auth";
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  doc,
+  updateDoc,
+  arrayUnion,
+  onSnapshot,
+} from "firebase/firestore";
+import { auth, db } from "../FirebaseConfig";
+import { LinearGradient } from "expo-linear-gradient";
+import { Linking } from "react-native";
+import Svg, { Circle } from "react-native-svg";
+import { useRoute } from "@react-navigation/native";
 import Animated, {
   useSharedValue,
   useAnimatedProps,
   withTiming,
   Easing,
-} from 'react-native-reanimated';
+} from "react-native-reanimated";
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 const HomeScreen = ({ navigation }) => {
-  const route = useRoute(); 
+  const route = useRoute();
   const [user, setUser] = useState(null);
   const [joinedGroup, setJoinedGroup] = useState(null);
   const [toiletUsers, setToiletUsers] = useState([]);
   const [isOnToilet, setIsOnToilet] = useState(false);
   const [endTime, setEndTime] = useState(null);
-  const [remainingTime, setRemainingTime] = useState(0); // ⬅️ numeric countdown
+  const [remainingTime, setRemainingTime] = useState(0);
 
-  // ⏳ SVG circle setup
+  // circle progress
   const radius = 40;
   const circumference = 2 * Math.PI * radius;
   const progress = useSharedValue(circumference);
 
-  // ✅ FIXED: Alert effect moved OUTSIDE of onAuthStateChanged
   useEffect(() => {
     if (route.params?.showUsernameAlert) {
       Alert.alert("Please go to profile and enter a username");
@@ -47,10 +61,9 @@ const HomeScreen = ({ navigation }) => {
         setUser(auth.currentUser);
 
         const q = query(
-  collection(db, 'groups'),
-  where('membersUIDs', 'array-contains', currentUser.uid)
-);
-
+          collection(db, "groups"),
+          where("membersUIDs", "array-contains", currentUser.uid)
+        );
 
         const snapshot = await getDocs(q);
         if (!snapshot.empty) {
@@ -58,7 +71,7 @@ const HomeScreen = ({ navigation }) => {
           const groupData = { id: groupDoc.id, ...groupDoc.data() };
           setJoinedGroup(groupData);
 
-          const groupRef = doc(db, 'groups', groupDoc.id);
+          const groupRef = doc(db, "groups", groupDoc.id);
           const unsubGroup = onSnapshot(groupRef, (snap) => {
             if (snap.exists()) {
               const data = snap.data();
@@ -100,7 +113,7 @@ const HomeScreen = ({ navigation }) => {
     return () => unsubscribe();
   }, []);
 
-  // ⏳ Animate progress + numeric countdown
+  // timer + animation
   useEffect(() => {
     let interval;
     if (isOnToilet && endTime) {
@@ -154,9 +167,9 @@ const HomeScreen = ({ navigation }) => {
     strokeDashoffset: progress.value,
   }));
 
-  const handleToiletToggle = async (auto = false) => {
+  const handleToiletToggle = async () => {
     if (!joinedGroup || !user) return;
-    const groupRef = doc(db, 'groups', joinedGroup.id);
+    const groupRef = doc(db, "groups", joinedGroup.id);
 
     try {
       if (!isOnToilet) {
@@ -164,8 +177,8 @@ const HomeScreen = ({ navigation }) => {
         await updateDoc(groupRef, {
           toiletStatus: arrayUnion({
             uid: user.uid,
-            username: user.displayName || 'Anonymous',
-            status: 'inToilet',
+            username: user.displayName || "Anonymous",
+            status: "inToilet",
             timestamp: Date.now(),
             expiresAt: expiry,
           }),
@@ -177,7 +190,7 @@ const HomeScreen = ({ navigation }) => {
         });
       }
     } catch (error) {
-      console.error('Error updating toilet status:', error);
+      console.error("Error updating toilet status:", error);
     }
   };
 
@@ -185,18 +198,33 @@ const HomeScreen = ({ navigation }) => {
     const totalSeconds = Math.floor(ms / 1000);
     const minutes = Math.floor(totalSeconds / 60);
     const seconds = totalSeconds % 60;
-    return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+    return `${minutes}:${seconds < 10 ? "0" : ""}${seconds}`;
   };
 
   return (
-    <LinearGradient colors={['#e6f0ff', '#ffffff']} style={styles.gradient}>
+    <LinearGradient colors={["#e6f0ff", "#ffffff"]} style={styles.gradient}>
       <ScrollView contentContainerStyle={styles.container}>
+        {/* Profile Badge as Button */}
         {user && (
-          <View style={styles.profileContainer}>
-            <Text style={styles.profileText}>{user.displayName || user.email}</Text>
-          </View>
+          <TouchableOpacity
+            onPress={() => navigation.navigate("Profile")}
+            style={styles.profileContainer}
+            activeOpacity={0.8}
+          >
+            <View style={styles.avatarCircle}>
+              <Text style={styles.avatarText}>
+                {user.displayName
+                  ? user.displayName.charAt(0).toUpperCase()
+                  : "U"}
+              </Text>
+            </View>
+            <Text style={styles.profileText}>
+              {user.displayName || user.email}
+            </Text>
+          </TouchableOpacity>
         )}
 
+        {/* Toilet Alert Banner */}
         {toiletUsers.length > 0 && (
           <View style={styles.toiletBanner}>
             <Text style={styles.toiletBannerTitle}>🚽 Toilet Alert</Text>
@@ -208,59 +236,111 @@ const HomeScreen = ({ navigation }) => {
           </View>
         )}
 
+        {/* Buttons */}
         {joinedGroup && (
           <TouchableOpacity
-            style={styles.button}
-            onPress={() => navigation.navigate('GroupEdit', { group: joinedGroup })}
+            onPress={() =>
+              navigation.navigate("GroupEdit", { group: joinedGroup })
+            }
+            activeOpacity={0.85}
           >
-            <Text style={styles.buttonText}>{joinedGroup.name}</Text>
+            <LinearGradient
+              colors={["#6a11cb", "#2575fc"]}
+              style={styles.buttonGradient}
+            >
+              <Text style={styles.buttonText}>🏠 {joinedGroup.name}</Text>
+            </LinearGradient>
           </TouchableOpacity>
         )}
 
-        <TouchableOpacity style={styles.button} onPress={() => navigation.navigate('CreateGroup')}>
-          <Text style={styles.buttonText}>➕ Create Group</Text>
+        <TouchableOpacity
+          onPress={() => navigation.navigate("CreateGroup")}
+          activeOpacity={0.85}
+        >
+          <LinearGradient
+            colors={["#ff7e5f", "#feb47b"]}
+            style={styles.buttonGradient}
+          >
+            <Text style={styles.buttonText}>➕ Create Group</Text>
+          </LinearGradient>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.button} onPress={() => navigation.navigate('JoinGroup')}>
-          <Text style={styles.buttonText}>👥 Join Group</Text>
+        <TouchableOpacity
+          onPress={() => navigation.navigate("JoinGroup")}
+          activeOpacity={0.85}
+        >
+          <LinearGradient
+            colors={["#43cea2", "#185a9d"]}
+            style={styles.buttonGradient}
+          >
+            <Text style={styles.buttonText}>👥 Join Group</Text>
+          </LinearGradient>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.button} onPress={() => navigation.navigate(user ? 'Profile' : 'SignUp')}>
-          <Text style={styles.buttonText}>{user ? '👤 Profile' : '📝 Sign Up'}</Text>
+        <TouchableOpacity
+          onPress={() => navigation.navigate(user ? "Profile" : "SignUp")}
+          activeOpacity={0.85}
+        >
+          <LinearGradient
+            colors={["#ff512f", "#dd2476"]}
+            style={styles.buttonGradient}
+          >
+            <Text style={styles.buttonText}>
+              {user ? "👤 Profile" : "📝 Sign Up"}
+            </Text>
+          </LinearGradient>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.discord} onPress={() => Linking.openURL("https://discord.gg/QydjNauSaV")}>
-          <Text style={styles.buttonText}>💬 Discord</Text> 
+        <TouchableOpacity
+          onPress={() => Linking.openURL("https://discord.gg/QydjNauSaV")}
+          activeOpacity={0.85}
+        >
+          <LinearGradient
+            colors={["#5865F2", "#4752C4"]}
+            style={styles.buttonGradient}
+          >
+            <Text style={styles.buttonText}>💬 Discord</Text>
+          </LinearGradient>
         </TouchableOpacity>
 
+        {/* Toilet Timer with Gradient Button */}
         {joinedGroup && (
-          <View style={{ alignItems: 'center' }}>
+          <View style={{ alignItems: "center" }}>
             <TouchableOpacity
-              style={[styles.toiletButton, isOnToilet && styles.finishedButton]}
               onPress={() => handleToiletToggle()}
+              activeOpacity={0.85}
             >
-              <Text style={styles.toiletButtonText}>
-                {isOnToilet ? '✅ Finished' : '💩 Indulge'}
-              </Text>
+              <LinearGradient
+                colors={
+                  isOnToilet
+                    ? ["#43e97b", "#38f9d7"] // green gradient
+                    : ["#ff416c", "#ff4b2b"] // red/orange gradient
+                }
+                style={styles.toiletButtonGradient}
+              >
+                <Text style={styles.toiletButtonText}>
+                  {isOnToilet ? "✅ Finished" : "💩 Indulge"}
+                </Text>
+              </LinearGradient>
             </TouchableOpacity>
 
             {isOnToilet && (
-              <View style={{ marginTop: 20, alignItems: 'center' }}>
-                <Svg height="120" width="120">
+              <View style={{ marginTop: 25, alignItems: "center" }}>
+                <Svg height="140" width="140">
                   <Circle
-                    cx="60"
-                    cy="60"
+                    cx="70"
+                    cy="70"
                     r={radius}
-                    stroke="#ddd"
-                    strokeWidth="8"
+                    stroke="#eee"
+                    strokeWidth="10"
                     fill="none"
                   />
                   <AnimatedCircle
-                    cx="60"
-                    cy="60"
+                    cx="70"
+                    cy="70"
                     r={radius}
-                    stroke="#4CAF50"
-                    strokeWidth="8"
+                    stroke="#4da6ff"
+                    strokeWidth="10"
                     strokeDasharray={circumference}
                     animatedProps={animatedProps}
                     fill="none"
@@ -268,14 +348,14 @@ const HomeScreen = ({ navigation }) => {
                   />
                   <Text
                     style={{
-                      position: 'absolute',
-                      top: 45,
+                      position: "absolute",
+                      top: 55,
                       left: 0,
                       right: 0,
-                      textAlign: 'center',
-                      fontSize: 20,
-                      fontWeight: 'bold',
-                      color: '#333',
+                      textAlign: "center",
+                      fontSize: 22,
+                      fontWeight: "bold",
+                      color: "#333",
                     }}
                   >
                     {formatTime(remainingTime)}
@@ -298,99 +378,104 @@ const styles = StyleSheet.create({
   },
   container: {
     flexGrow: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 40,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 50,
     gap: 20,
   },
+  // profile badge
   profileContainer: {
-    position: 'absolute',
+    position: "absolute",
     top: 50,
     right: 20,
-    backgroundColor: '#ffffffcc',
-    padding: 10,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 30,
+    backgroundColor: "rgba(255, 255, 255, 0.75)",
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+  },
+  avatarCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#4da6ff",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 10,
+  },
+  avatarText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 16,
   },
   profileText: {
     fontSize: 15,
-    color: '#333',
-    fontWeight: '600',
+    fontWeight: "600",
+    color: "#333",
   },
-  discord: {
-    backgroundColor: '#5865F2',
+  // generic gradient buttons
+  buttonGradient: {
     paddingVertical: 14,
     paddingHorizontal: 28,
-    borderRadius: 16,
+    borderRadius: 22,
     minWidth: 240,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
     shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-  },
-  button: {
-    backgroundColor: '#4da6ff',
-    paddingVertical: 14,
-    paddingHorizontal: 28,
-    borderRadius: 16,
-    minWidth: 240,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 3 },
   },
   buttonText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 17,
-    fontWeight: '600',
+    fontWeight: "600",
   },
-  toiletButton: {
-    backgroundColor: '#ff6666',
-    paddingVertical: 14,
+  // toilet action button
+  toiletButtonGradient: {
+    paddingVertical: 16,
     paddingHorizontal: 28,
-    borderRadius: 20,
-    minWidth: 240,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
+    borderRadius: 28,
+    minWidth: 260,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
     shadowOpacity: 0.15,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 3 },
   },
-  finishedButton: {
-    backgroundColor: '#4CAF50',
-  },
   toiletButtonText: {
-    color: '#fff',
-    fontSize: 17,
-    fontWeight: '700',
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "700",
   },
+  // toilet banner
   toiletBanner: {
-    backgroundColor: '#fff8e6',
+    backgroundColor: "#fff",
     borderLeftWidth: 5,
-    borderLeftColor: '#ffcc00',
+    borderLeftColor: "#ffcc00",
     padding: 16,
-    borderRadius: 16,
+    borderRadius: 18,
     marginBottom: 20,
-    width: '90%',
-    shadowColor: '#000',
+    width: "90%",
+    shadowColor: "#000",
     shadowOpacity: 0.1,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },
   },
   toiletBannerTitle: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: "700",
     marginBottom: 6,
-    color: '#444',
+    color: "#444",
   },
   toiletText: {
     fontSize: 15,
-    color: '#555',
+    color: "#555",
   },
 });
