@@ -167,7 +167,7 @@ const HomeScreen = ({ navigation }) => {
     strokeDashoffset: progress.value,
   }));
 
-  const handleToiletToggle = async (auto = false) => {
+  const handleToiletToggle = async () => {
     if (!joinedGroup || !user) return;
     const groupRef = doc(db, "groups", joinedGroup.id);
 
@@ -235,57 +235,91 @@ const HomeScreen = ({ navigation }) => {
         {/* Buttons */}
         {joinedGroup && (
           <TouchableOpacity
-            style={styles.button}
             onPress={() =>
               navigation.navigate("GroupEdit", { group: joinedGroup })
             }
+            activeOpacity={0.85}
           >
-            <Text style={styles.buttonText}>🏠 {joinedGroup.name}</Text>
+            <LinearGradient
+              colors={["#6a11cb", "#2575fc"]}
+              style={styles.buttonGradient}
+            >
+              <Text style={styles.buttonText}>🏠 {joinedGroup.name}</Text>
+            </LinearGradient>
           </TouchableOpacity>
         )}
 
         <TouchableOpacity
-          style={styles.button}
           onPress={() => navigation.navigate("CreateGroup")}
+          activeOpacity={0.85}
         >
-          <Text style={styles.buttonText}>➕ Create Group</Text>
+          <LinearGradient
+            colors={["#ff7e5f", "#feb47b"]}
+            style={styles.buttonGradient}
+          >
+            <Text style={styles.buttonText}>➕ Create Group</Text>
+          </LinearGradient>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={styles.button}
           onPress={() => navigation.navigate("JoinGroup")}
+          activeOpacity={0.85}
         >
-          <Text style={styles.buttonText}>👥 Join Group</Text>
+          <LinearGradient
+            colors={["#43cea2", "#185a9d"]}
+            style={styles.buttonGradient}
+          >
+            <Text style={styles.buttonText}>👥 Join Group</Text>
+          </LinearGradient>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={styles.button}
           onPress={() =>
             navigation.navigate(user ? "Profile" : "SignUp")
           }
+          activeOpacity={0.85}
         >
-          <Text style={styles.buttonText}>
-            {user ? "👤 Profile" : "📝 Sign Up"}
-          </Text>
+          <LinearGradient
+            colors={["#ff512f", "#dd2476"]}
+            style={styles.buttonGradient}
+          >
+            <Text style={styles.buttonText}>
+              {user ? "👤 Profile" : "📝 Sign Up"}
+            </Text>
+          </LinearGradient>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={styles.discord}
           onPress={() => Linking.openURL("https://discord.gg/QydjNauSaV")}
+          activeOpacity={0.85}
         >
-          <Text style={styles.buttonText}>💬 Discord</Text>
+          <LinearGradient
+            colors={["#5865F2", "#4752C4"]}
+            style={styles.buttonGradient}
+          >
+            <Text style={styles.buttonText}>💬 Discord</Text>
+          </LinearGradient>
         </TouchableOpacity>
 
-        {/* Toilet Timer */}
+        {/* Toilet Timer with Gradient Button */}
         {joinedGroup && (
           <View style={{ alignItems: "center" }}>
             <TouchableOpacity
-              style={[styles.toiletButton, isOnToilet && styles.finishedButton]}
               onPress={() => handleToiletToggle()}
+              activeOpacity={0.85}
             >
-              <Text style={styles.toiletButtonText}>
-                {isOnToilet ? "✅ Finished" : "💩 Indulge"}
-              </Text>
+              <LinearGradient
+                colors={
+                  isOnToilet
+                    ? ["#43e97b", "#38f9d7"] // green gradient
+                    : ["#ff416c", "#ff4b2b"] // red/orange gradient
+                }
+                style={styles.toiletButtonGradient}
+              >
+                <Text style={styles.toiletButtonText}>
+                  {isOnToilet ? "✅ Finished" : "💩 Indulge"}
+                </Text>
+              </LinearGradient>
             </TouchableOpacity>
 
             {isOnToilet && (
@@ -382,43 +416,30 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#333",
   },
-  // buttons
-  button: {
-    backgroundColor: "#4da6ff",
+  // generic gradient buttons
+  buttonGradient: {
     paddingVertical: 14,
     paddingHorizontal: 28,
-    borderRadius: 20,
+    borderRadius: 22,
     minWidth: 240,
     alignItems: "center",
+    justifyContent: "center",
     shadowColor: "#000",
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.12,
     shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-  },
-  discord: {
-    backgroundColor: "#5865F2",
-    paddingVertical: 14,
-    paddingHorizontal: 28,
-    borderRadius: 20,
-    minWidth: 240,
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 3 },
   },
   buttonText: {
     color: "#fff",
     fontSize: 17,
     fontWeight: "600",
   },
-  // toilet stuff
-  toiletButton: {
-    backgroundColor: "#ff6666",
+  // toilet action button
+  toiletButtonGradient: {
     paddingVertical: 16,
     paddingHorizontal: 28,
-    borderRadius: 25,
-    minWidth: 240,
+    borderRadius: 28,
+    minWidth: 260,
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#000",
@@ -426,14 +447,12 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 3 },
   },
-  finishedButton: {
-    backgroundColor: "#4CAF50",
-  },
   toiletButtonText: {
     color: "#fff",
-    fontSize: 17,
+    fontSize: 18,
     fontWeight: "700",
   },
+  // toilet banner
   toiletBanner: {
     backgroundColor: "#fff",
     borderLeftWidth: 5,
