@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ActivityIndicator, FlatList, TouchableOpacity, 
 import { doc, getDoc, updateDoc, arrayRemove } from 'firebase/firestore';
 import { db } from '../FirebaseConfig';
 import { getAuth } from 'firebase/auth';
-import { Ionicons } from '@expo/vector-icons'; // icon package
+import { Ionicons } from '@expo/vector-icons';
 
 const GroupEdit = ({ route, navigation }) => {
   const { group } = route.params || {};
@@ -13,6 +13,7 @@ const GroupEdit = ({ route, navigation }) => {
   const auth = getAuth();
   const currentUser = auth.currentUser;
 
+  // fetch group
   useEffect(() => {
     const fetchGroup = async () => {
       if (!group?.id) return;
@@ -47,19 +48,50 @@ const GroupEdit = ({ route, navigation }) => {
             try {
               const groupRef = doc(db, 'groups', group.id);
 
-              // remove user from members + membersUIDs
               await updateDoc(groupRef, {
                 members: arrayRemove({
                   uid: currentUser.uid,
-                  username: currentUser.displayName || 'Anonymous'
-                }),
-                membersUIDs: arrayRemove(currentUser.uid)
+                  username: currentUser.displayName || currentUser.email || 'Anonymous'
+                })
               });
 
-              navigation.navigate('Home'); // go back to home
+              navigation.navigate('Home'); 
             } catch (error) {
               console.error('Error leaving group:', error);
               Alert.alert('Error', 'Could not leave the group.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // kick member (only by owner)
+  const handleKickMember = (member) => {
+    Alert.alert(
+      'Remove Member',
+      `Are you sure you want to remove ${member.username}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const groupRef = doc(db, 'groups', group.id);
+
+              await updateDoc(groupRef, {
+                members: arrayRemove(member)
+              });
+
+              // update local state
+              setGroupData((prev) => ({
+                ...prev,
+                members: prev.members.filter((m) => m.uid !== member.uid)
+              }));
+            } catch (error) {
+              console.error('Error removing member:', error);
+              Alert.alert('Error', 'Could not remove member.');
             }
           },
         },
@@ -96,12 +128,24 @@ const GroupEdit = ({ route, navigation }) => {
         keyExtractor={(item, index) => item.uid || index.toString()}
         renderItem={({ item }) => (
           <View style={styles.memberCard}>
-            <Text style={styles.memberName}>
-              {item.username || 'Anonymous'}
-              {item.uid === groupData.ownerUID && ' 👑'}
-            </Text>
-            {/* member icon */}
-            <Ionicons name="person-circle-outline" size={22} color="#007bff" />
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={styles.memberName}>
+                {item.username || 'Anonymous'}
+                {item.uid === groupData.ownerId && ' 👑'}
+              </Text>
+            </View>
+
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Ionicons name="person-circle-outline" size={22} color="#007bff" />
+              {currentUser.uid === groupData.ownerId && item.uid !== groupData.ownerId && (
+                <TouchableOpacity
+                  style={styles.kickButton}
+                  onPress={() => handleKickMember(item)}
+                >
+                  <Ionicons name="trash-outline" size={20} color="#FF3B30" />
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
         )}
         ListEmptyComponent={
@@ -176,5 +220,11 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: 'bold',
     fontSize: 16,
+  },
+  kickButton: {
+    marginLeft: 10,
+    padding: 6,
+    borderRadius: 6,
+    backgroundColor: '#FDECEC',
   },
 });

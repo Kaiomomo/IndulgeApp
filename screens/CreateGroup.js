@@ -80,11 +80,11 @@ const CreateGroup = () => {
     }
 
     try {
-        const q =query( 
-
-          collection(db,'groups'),
-          where('name', "==", groupName.trim())
-        );
+      // check duplicate group name
+      const q = query( 
+        collection(db,'groups'),
+        where('name', "==", groupName.trim())
+      );
       const existingGroups = await getDocs(q);
 
       if (!existingGroups.empty){
@@ -92,18 +92,31 @@ const CreateGroup = () => {
         return;
       }
    
+      // Parse additional members from input
       const memberList = members
         .split(',')
         .map(m => m.trim())
-        .filter(m => m);
+        .filter(m => m)
+        .map((m, i) => ({
+          uid: `manual-${Date.now()}-${i}`,  // dummy UID for non-registered users
+          username: m
+        }));
+
+      // Add current user (owner) as the first member
+      const ownerMember = {
+        uid: currentUser.uid,
+        username: currentUser.displayName || currentUser.email || "Anonymous"
+      };
 
       const newGroup = {
         code: groupCode,
         name: groupName.trim(),
-        members: memberList,
+        members: [ownerMember, ...memberList],   // 👈 include owner
         ownerId: currentUser.uid,
+        ownerName: currentUser.displayName || currentUser.email || "Anonymous", // 👈 store owner name
         createdAt: new Date()
       };
+
       await addDoc(collection(db, 'groups'), newGroup);
       setModalVisible(false);
       fetchGroups(currentUser.uid); // refresh list
@@ -340,4 +353,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-
