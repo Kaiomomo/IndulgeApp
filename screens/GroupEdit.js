@@ -1,9 +1,10 @@
+// GroupEdit.js
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, FlatList, TouchableOpacity, Alert } from 'react-native';
-import { doc, getDoc, updateDoc, arrayRemove } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, arrayRemove, onSnapshot } from 'firebase/firestore';
 import { db } from '../FirebaseConfig';
 import { getAuth } from 'firebase/auth';
-import { Ionicons } from '@expo/vector-icons'; // icon package
+import { Ionicons } from '@expo/vector-icons';
 
 const GroupEdit = ({ route, navigation }) => {
   const { group } = route.params || {};
@@ -14,23 +15,28 @@ const GroupEdit = ({ route, navigation }) => {
   const currentUser = auth.currentUser;
 
   useEffect(() => {
-    const fetchGroup = async () => {
-      if (!group?.id) return;
-      try {
-        const groupRef = doc(db, 'groups', group.id);
-        const snapshot = await getDoc(groupRef);
+    if (!group?.id) return;
 
-        if (snapshot.exists()) {
-          setGroupData({ id: snapshot.id, ...snapshot.data() });
+    const groupRef = doc(db, 'groups', group.id);
+
+    // live updates
+    const unsubscribe = onSnapshot(groupRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const data = { id: snapshot.id, ...snapshot.data() };
+        setGroupData(data);
+
+        // 👇 auto-navigate user if kicked
+        if (!data.membersUIDs?.includes(currentUser.uid)) {
+          Alert.alert("Removed", "You were removed from the group.");
+          navigation.navigate('Home');
         }
-      } catch (error) {
-        console.error('Error fetching group:', error);
-      } finally {
-        setLoading(false);
+      } else {
+        setGroupData(null);
       }
-    };
+      setLoading(false);
+    });
 
-    fetchGroup();
+    return () => unsubscribe();
   }, [group]);
 
   // leave group handler
@@ -47,19 +53,59 @@ const GroupEdit = ({ route, navigation }) => {
             try {
               const groupRef = doc(db, 'groups', group.id);
 
-              // remove user from members + membersUIDs
               await updateDoc(groupRef, {
                 members: arrayRemove({
                   uid: currentUser.uid,
-                  username: currentUser.displayName || 'Anonymous'
+                  username: currentUser.displayName || 'Anonymous',
                 }),
-                membersUIDs: arrayRemove(currentUser.uid)
+                membersUIDs: arrayRemove(currentUser.uid),
               });
 
-              navigation.navigate('Home'); // go back to home
+              navigation.navigate('Home');
             } catch (error) {
               console.error('Error leaving group:', error);
               Alert.alert('Error', 'Could not leave the group.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // owner kicking a member
+  const handleKickMember = (member) => {
+    Alert.alert(
+      'Kick Member',
+      `Remove ${member.username || 'this user'} from the group?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Kick',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const groupRef = doc(db, 'groups', group.id);
+
+              await updateDoc(groupRef, {
+                members: arrayRemove({
+                  uid: member.uid,
+                  username: member.username || 'Anonymous',
+                }),
+                membersUIDs: arrayRemove(member.uid),
+              });
+
+              // also clean toiletStatus if exists
+              if (groupData.toiletStatus) {
+                const updatedToiletStatus = groupData.toiletStatus.filter(
+                  (u) => u.uid !== member.uid
+                );
+                await updateDoc(groupRef, { toiletStatus: updatedToiletStatus });
+              }
+
+              Alert.alert('Success', `${member.username || 'User'} was removed.`);
+            } catch (error) {
+              console.error('Error kicking member:', error);
+              Alert.alert('Error', 'Could not remove member.');
             }
           },
         },
@@ -98,10 +144,22 @@ const GroupEdit = ({ route, navigation }) => {
           <View style={styles.memberCard}>
             <Text style={styles.memberName}>
               {item.username || 'Anonymous'}
-              {item.uid === groupData.ownerUID && ' 👑'}
+              {item.uid === groupData.ownerId && ' 👑'}
             </Text>
-            {/* member icon */}
-            <Ionicons name="person-circle-outline" size={22} color="#007bff" />
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Ionicons name="person-circle-outline" size={22} color="#007bff" />
+
+              {/* Kick button if owner */}
+              {currentUser.uid === groupData.ownerId &&
+                item.uid !== groupData.ownerId && (
+                  <TouchableOpacity
+                    onPress={() => handleKickMember(item)}
+                    style={styles.kickButton}
+                  >
+                    <Text style={styles.kickText}>Kick</Text>
+                  </TouchableOpacity>
+                )}
+            </View>
           </View>
         )}
         ListEmptyComponent={
@@ -176,5 +234,17 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: 'bold',
     fontSize: 16,
+  },
+  kickButton: {
+    backgroundColor: '#ff4d4d',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginLeft: 10,
+  },
+  kickText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
   },
 });

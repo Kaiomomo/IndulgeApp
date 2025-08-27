@@ -72,7 +72,7 @@ const Profile = ({ navigation }) => {
     }
     try {
       await sendPasswordResetEmail(auth, resetEmail);
-      Alert.alert('Success', 'Password reset email sent! Please check your inbox.');
+      Alert.alert('Password reset email sent! Please check your Spam.');
     } catch (error) {
       Alert.alert('Error', error.message);
     }
