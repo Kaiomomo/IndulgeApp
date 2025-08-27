@@ -26,8 +26,9 @@ import Svg, { Circle } from "react-native-svg";
 import { useRoute } from "@react-navigation/native";
 import Animated, {
   useSharedValue,
-  useAnimatedProps,
+  useAnimatedStyle,
   withTiming,
+  useAnimatedProps,
   Easing,
 } from "react-native-reanimated";
 
@@ -46,6 +47,10 @@ const HomeScreen = ({ navigation }) => {
   const radius = 40;
   const circumference = 2 * Math.PI * radius;
   const progress = useSharedValue(circumference);
+
+  // toast animation
+  const toastTranslateY = useSharedValue(-100);
+  const toastOpacity = useSharedValue(0);
 
   useEffect(() => {
     if (route.params?.showUsernameAlert) {
@@ -201,8 +206,34 @@ const HomeScreen = ({ navigation }) => {
     return `${minutes}:${seconds < 10 ? "0" : ""}${seconds}`;
   };
 
+  // 🚽 Toast animation effect
+  useEffect(() => {
+    if (toiletUsers.length > 0) {
+      toastTranslateY.value = withTiming(0, { duration: 400, easing: Easing.out(Easing.ease) });
+      toastOpacity.value = withTiming(1, { duration: 400 });
+    } else {
+      toastTranslateY.value = withTiming(-100, { duration: 300 });
+      toastOpacity.value = withTiming(0, { duration: 300 });
+    }
+  }, [toiletUsers]);
+
+  const toastStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: toastTranslateY.value }],
+    opacity: toastOpacity.value,
+  }));
+
   return (
     <LinearGradient colors={["#e6f0ff", "#ffffff"]} style={styles.gradient}>
+      {/* 🚽 Floating Toilet Alert */}
+      <Animated.View style={[styles.toastContainer, toastStyle]}>
+        <Text style={styles.toastTitle}>🚽 Toilet Alert</Text>
+        {toiletUsers.map((u) => (
+          <Text key={u.uid} style={styles.toastText}>
+            {u.username} is in the toilet...
+          </Text>
+        ))}
+      </Animated.View>
+
       <ScrollView contentContainerStyle={styles.container}>
         {/* Profile Badge as Button */}
         {user && (
@@ -222,18 +253,6 @@ const HomeScreen = ({ navigation }) => {
               {user.displayName || user.email}
             </Text>
           </TouchableOpacity>
-        )}
-
-        {/* Toilet Alert Banner */}
-        {toiletUsers.length > 0 && (
-          <View style={styles.toiletBanner}>
-            <Text style={styles.toiletBannerTitle}>🚽 Toilet Alert</Text>
-            {toiletUsers.map((u) => (
-              <Text key={u.uid} style={styles.toiletText}>
-                {u.username} is in the toilet...
-              </Text>
-            ))}
-          </View>
         )}
 
         {/* Buttons */}
@@ -313,8 +332,8 @@ const HomeScreen = ({ navigation }) => {
               <LinearGradient
                 colors={
                   isOnToilet
-                    ? ["#43e97b", "#38f9d7"] // green gradient
-                    : ["#ff416c", "#ff4b2b"] // red/orange gradient
+                    ? ["#43e97b", "#38f9d7"]
+                    : ["#ff416c", "#ff4b2b"]
                 }
                 style={styles.toiletButtonGradient}
               >
@@ -454,27 +473,28 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
   },
-  // toilet banner
-  toiletBanner: {
-    backgroundColor: "#fff",
-    borderLeftWidth: 5,
-    borderLeftColor: "#ffcc00",
+  // 🚽 toast styles
+  toastContainer: {
+    position: "absolute",
+    top: 40,
+    left: 20,
+    right: 20,
     padding: 16,
     borderRadius: 18,
-    marginBottom: 20,
-    width: "90%",
+    backgroundColor: "#fff",
     shadowColor: "#000",
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.15,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },
+    zIndex: 999,
   },
-  toiletBannerTitle: {
+  toastTitle: {
     fontSize: 16,
     fontWeight: "700",
     marginBottom: 6,
     color: "#444",
   },
-  toiletText: {
+  toastText: {
     fontSize: 15,
     color: "#555",
   },
