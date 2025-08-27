@@ -13,11 +13,10 @@ import {
   collection,
   query,
   where,
-  getDocs,
+  onSnapshot,
   doc,
   updateDoc,
   arrayUnion,
-  onSnapshot,
 } from "firebase/firestore";
 import { auth, db } from "../FirebaseConfig";
 import { LinearGradient } from "expo-linear-gradient";
@@ -60,51 +59,77 @@ const HomeScreen = ({ navigation }) => {
   }, [route.params]);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         await currentUser.reload();
         setUser(auth.currentUser);
 
+        // listen for any groups the user is part of
         const q = query(
           collection(db, "groups"),
           where("membersUIDs", "array-contains", currentUser.uid)
         );
 
-        const snapshot = await getDocs(q);
-        if (!snapshot.empty) {
-          const groupDoc = snapshot.docs[0];
-          const groupData = { id: groupDoc.id, ...groupDoc.data() };
-          setJoinedGroup(groupData);
+        const unsubscribeGroupQuery = onSnapshot(q, (snapshot) => {
+          if (!snapshot.empty) {
+            const groupDoc = snapshot.docs[0];
+            const groupRef = doc(db, "groups", groupDoc.id);
 
-          const groupRef = doc(db, "groups", groupDoc.id);
-          const unsubGroup = onSnapshot(groupRef, (snap) => {
-            if (snap.exists()) {
-              const data = snap.data();
-              const list = data.toiletStatus || [];
-              setToiletUsers(list);
+            // listen to this specific group
+            const unsubscribeGroup = onSnapshot(groupRef, (snap) => {
+              if (snap.exists()) {
+                const data = snap.data();
 
-              const me = list.find((u) => u.uid === currentUser.uid);
-              if (me) {
-                setIsOnToilet(true);
-                if (me.expiresAt) {
-                  setEndTime(me.expiresAt);
+                // check if still a member
+                if (!data.membersUIDs?.includes(currentUser.uid)) {
+                  // user was kicked
+                  setJoinedGroup(null);
+                  setToiletUsers([]);
+                  setIsOnToilet(false);
+                  setEndTime(null);
+                  setRemainingTime(0);
+                  Alert.alert("Removed", "You were removed from the group.");
+                  return;
+                }
+
+                setJoinedGroup({ id: snap.id, ...data });
+
+                const list = data.toiletStatus || [];
+                setToiletUsers(list);
+
+                const me = list.find((u) => u.uid === currentUser.uid);
+                if (me) {
+                  setIsOnToilet(true);
+                  if (me.expiresAt) {
+                    setEndTime(me.expiresAt);
+                  }
+                } else {
+                  setIsOnToilet(false);
+                  setEndTime(null);
+                  setRemainingTime(0);
                 }
               } else {
+                // group deleted
+                setJoinedGroup(null);
+                setToiletUsers([]);
                 setIsOnToilet(false);
                 setEndTime(null);
                 setRemainingTime(0);
               }
-            }
-          });
+            });
 
-          return () => unsubGroup();
-        } else {
-          setJoinedGroup(null);
-          setToiletUsers([]);
-          setIsOnToilet(false);
-          setEndTime(null);
-          setRemainingTime(0);
-        }
+            return () => unsubscribeGroup();
+          } else {
+            // no group joined
+            setJoinedGroup(null);
+            setToiletUsers([]);
+            setIsOnToilet(false);
+            setEndTime(null);
+            setRemainingTime(0);
+          }
+        });
+
+        return () => unsubscribeGroupQuery();
       } else {
         setUser(null);
         setJoinedGroup(null);
@@ -115,7 +140,7 @@ const HomeScreen = ({ navigation }) => {
       }
     });
 
-    return () => unsubscribe();
+    return () => unsubscribeAuth();
   }, []);
 
   // timer + animation
