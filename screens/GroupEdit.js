@@ -35,7 +35,6 @@ const GroupEdit = ({ route, navigation }) => {
         setGroupData(data);
 
         if (!data.membersUIDs?.includes(currentUser.uid)) {
-          Alert.alert("Removed", "You were removed from the group.");
           navigation.navigate("Home");
         }
       } else {

@@ -88,7 +88,6 @@ const HomeScreen = ({ navigation }) => {
                   setIsOnToilet(false);
                   setEndTime(null);
                   setRemainingTime(0);
-                  Alert.alert("Removed", "You were removed from the group.");
                   return;
                 }
 
@@ -219,7 +218,7 @@ const HomeScreen = ({ navigation }) => {
           return; 
         }
 
-        const expiry = Date.now() + 1 * 60 * 1000;
+        const expiry = Date.now() + 10 * 60 * 1000;
         await updateDoc(groupRef, {
           toiletStatus: arrayUnion({
             uid: user.uid,
@@ -294,7 +293,7 @@ const HomeScreen = ({ navigation }) => {
         {joinedGroup && (
           <TouchableOpacity
             onPress={() => navigation.navigate("GroupEdit", { group: joinedGroup })}
-            activeOpacity={0.85}
+            activeOpacity={0.85}    
           >
             <LinearGradient colors={["#6a11cb", "#2575fc"]} style={styles.buttonGradient}>
               <Text style={styles.buttonText}>🏠 {joinedGroup.name}</Text>
