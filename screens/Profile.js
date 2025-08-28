@@ -11,6 +11,7 @@ import {
   EmailAuthProvider
 } from 'firebase/auth';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const Profile = ({ navigation }) => {
   const [user, setUser] = useState(null);
@@ -29,8 +30,8 @@ const Profile = ({ navigation }) => {
         setNewUsername(currentUser.displayName);
       }
       if (currentUser?.email) {
-        setResetEmail(currentUser.email); // prefill with logged-in email
-        setDeleteEmail(currentUser.email); // also prefill delete email
+        setResetEmail(currentUser.email); 
+        setDeleteEmail(currentUser.email); 
       }
     });
 
@@ -100,10 +101,15 @@ const Profile = ({ navigation }) => {
   };
 
   return (
-    <View style={styles.container}>
+    <LinearGradient
+      colors={['#ff512f', '#dd2476']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.container}
+    >
       {/* Profile Icon */}
       <View style={styles.iconHeader}>
-        <Ionicons name="person-circle-outline" size={90} color="#007AFF" />
+        <Ionicons name="person-circle-outline" size={90} color="#fff" />
       </View>
 
       {user ? (
@@ -124,11 +130,15 @@ const Profile = ({ navigation }) => {
                   onChangeText={setNewUsername}
                 />
                 <View style={styles.buttonRow}>
-                  <TouchableOpacity style={styles.primaryButtonRow} onPress={handleSaveUsername}>
-                    <Text style={styles.primaryText}>Save</Text>
+                  <TouchableOpacity style={{ flex: 1 }} onPress={handleSaveUsername}>
+                    <LinearGradient colors={['#4facfe', '#00f2fe']} style={styles.gradientButton}>
+                      <Text style={styles.primaryText}>Save</Text>
+                    </LinearGradient>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.secondaryButtonRow} onPress={() => setIsEditing(false)}>
-                    <Text style={styles.secondaryText}>Cancel</Text>
+                  <TouchableOpacity style={{ flex: 1 }} onPress={() => setIsEditing(false)}>
+                    <View style={styles.secondaryButtonRow}>
+                      <Text style={styles.secondaryText}>Cancel</Text>
+                    </View>
                   </TouchableOpacity>
                 </View>
               </>
@@ -136,8 +146,10 @@ const Profile = ({ navigation }) => {
               <>
                 <Text style={[styles.label, { marginTop: 15 }]}>Username:</Text>
                 <Text style={styles.value}>{user.displayName || 'Not set'}</Text>
-                <TouchableOpacity style={styles.primaryButton} onPress={() => setIsEditing(true)}>
-                  <Text style={styles.primaryText}>Edit Username</Text>
+                <TouchableOpacity onPress={() => setIsEditing(true)}>
+                  <LinearGradient colors={['#4facfe', '#00f2fe']} style={styles.primaryButton}>
+                    <Text style={styles.primaryText}>Edit Username</Text>
+                  </LinearGradient>
                 </TouchableOpacity>
               </>
             )}
@@ -158,23 +170,29 @@ const Profile = ({ navigation }) => {
               keyboardType="email-address"
               autoCapitalize="none"
             />
-            <TouchableOpacity style={styles.primaryButton} onPress={handlePasswordReset}>
-              <Text style={styles.primaryText}>Send Reset Email</Text>
+            <TouchableOpacity onPress={handlePasswordReset}>
+              <LinearGradient colors={['#4facfe', '#00f2fe']} style={styles.primaryButton}>
+                <Text style={styles.primaryText}>Send Reset Email</Text>
+              </LinearGradient>
             </TouchableOpacity>
           </View>
         </>
       ) : (
-        <Text style={styles.email}>No user logged in.</Text>
+        <Text style={[styles.value, { textAlign: 'center', color: '#fff' }]}>No user logged in.</Text>
       )}
 
       {/* Log Out Button */}
-      <TouchableOpacity style={styles.destructiveButton} onPress={handleLogout}>
-        <Text style={styles.destructiveText}>Log Out</Text>
+      <TouchableOpacity onPress={handleLogout}>
+        <LinearGradient colors={['#f7971e', '#ffd200']} style={styles.largeButton}>
+          <Text style={styles.primaryText}>Log Out</Text>
+        </LinearGradient>
       </TouchableOpacity>
 
       {/* Delete Account Button */}
-      <TouchableOpacity style={styles.deleteButton} onPress={() => setShowDeleteModal(true)}>
-        <Text style={styles.deleteText}>Delete Account</Text>
+      <TouchableOpacity onPress={() => setShowDeleteModal(true)}>
+        <LinearGradient colors={['#ff416c', '#ff4b2b']} style={styles.largeButton}>
+          <Text style={styles.primaryText}>Delete Account</Text>
+        </LinearGradient>
       </TouchableOpacity>
 
       {/* Delete Confirmation Modal */}
@@ -205,17 +223,21 @@ const Profile = ({ navigation }) => {
               secureTextEntry
             />
             <View style={styles.buttonRow}>
-              <TouchableOpacity style={styles.primaryButtonRow} onPress={confirmDeleteAccount}>
-                <Text style={styles.primaryText}>Delete</Text>
+              <TouchableOpacity style={{ flex: 1 }} onPress={confirmDeleteAccount}>
+                <LinearGradient colors={['#ff416c', '#ff4b2b']} style={styles.gradientButton}>
+                  <Text style={styles.primaryText}>Delete</Text>
+                </LinearGradient>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.secondaryButtonRow} onPress={() => setShowDeleteModal(false)}>
-                <Text style={styles.secondaryText}>Cancel</Text>
+              <TouchableOpacity style={{ flex: 1 }} onPress={() => setShowDeleteModal(false)}>
+                <View style={styles.secondaryButtonRow}>
+                  <Text style={styles.secondaryText}>Cancel</Text>
+                </View>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
-    </View>
+    </LinearGradient>
   );
 };
 
@@ -225,19 +247,17 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 24,
-    backgroundColor: '#FFFFFF',
   },
   card: {
-    backgroundColor: '#F9F9F9',
+    backgroundColor: 'rgba(255,255,255,0.9)',
     borderRadius: 16,
     padding: 20,
     marginBottom: 20,
     shadowColor: '#000',
-    shadowOpacity: 0.05,
-    minHeight: 140,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
   },
   label: {
     fontSize: 14,
@@ -269,12 +289,29 @@ const styles = StyleSheet.create({
     gap: 10,
     marginTop: 10,
   },
-  primaryButtonRow: {
-    flex: 1,
-    backgroundColor: '#FF3B30',
+  gradientButton: {
     paddingVertical: 12,
     borderRadius: 12,
     alignItems: 'center',
+  },
+  primaryButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 12,
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    marginTop: 10,
+  },
+  largeButton: {
+    marginTop: 20,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  primaryText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 15,
   },
   secondaryButtonRow: {
     flex: 1,
@@ -283,50 +320,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
   },
-  primaryButton: {
-    backgroundColor: '#007AFF',
-    paddingVertical: 10,
-    paddingHorizontal: 18,
-    borderRadius: 12,
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    marginTop: 10,
-  },
-  primaryText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 15,
-  },
   secondaryText: {
     color: '#007AFF',
-    fontWeight: '600',
-    fontSize: 15,
-  },
-  destructiveButton: {
-    marginTop: 30,
-    paddingVertical: 10,
-    paddingHorizontal: 18,
-    borderRadius: 12,
-    alignItems: 'center',
-    alignSelf: 'center',
-    backgroundColor: '#FF9500',
-  },
-  destructiveText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 15,
-  },
-  deleteButton: {
-    marginTop: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 18,
-    borderRadius: 12,
-    alignItems: 'center',
-    alignSelf: 'center',
-    backgroundColor: '#FF3B30',
-  },
-  deleteText: {
-    color: '#fff',
     fontWeight: '600',
     fontSize: 15,
   },
