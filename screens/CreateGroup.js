@@ -11,7 +11,7 @@ import {
   TextInput,
 } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
-import { LinearGradient } from 'expo-linear-gradient';
+import { LinearGradient } from "expo-linear-gradient";
 import {
   collection,
   addDoc,
@@ -150,8 +150,8 @@ const CreateGroup = () => {
 
   const renderGroupCard = ({ item }) => (
     <View style={styles.card}>
-      <Ionicons name="people-circle-outline" size={40} color="#ff7e5f" />
-      <View style={{ flex: 1, marginLeft: 12 }}>
+      <Ionicons name="people-circle-outline" size={44} color="#fff" />
+      <View style={{ flex: 1, marginLeft: 14 }}>
         <Text style={styles.cardTitle}>{item.name || "Group"}</Text>
         <Text style={styles.cardCode}>{item.code}</Text>
       </View>
@@ -160,7 +160,11 @@ const CreateGroup = () => {
         onPress={() =>
           Alert.alert("Delete Group", `Delete "${item.name}"?`, [
             { text: "Cancel", style: "cancel" },
-            { text: "Delete", style: "destructive", onPress: () => handleDeleteGroup(item.id) },
+            {
+              text: "Delete",
+              style: "destructive",
+              onPress: () => handleDeleteGroup(item.id),
+            },
           ])
         }
       >
@@ -171,15 +175,15 @@ const CreateGroup = () => {
 
   return (
     <LinearGradient colors={["#ff7e5f", "#feb47b"]} style={styles.container}>
-      <TouchableOpacity style={styles.createButton} onPress={openCreateModal}>
-        <Ionicons name="add-circle" size={22} color="#fff" />
-        <Text style={styles.createButtonText}>Create Group</Text>
-      </TouchableOpacity>
+      {/* Modern Title */}
+      <Text style={styles.headerText}>Your Groups</Text>
 
       {loading ? (
         <ActivityIndicator size="large" color="#fff" style={{ marginTop: 30 }} />
       ) : groups.length === 0 ? (
-        <Text style={styles.emptyText}>No groups yet. Create your first one!</Text>
+        <Text style={styles.emptyText}>
+          No groups yet. Tap + to create your first one!
+        </Text>
       ) : (
         <FlatList
           data={groups}
@@ -190,10 +194,16 @@ const CreateGroup = () => {
         />
       )}
 
-      <Modal visible={modalVisible} animationType="fade" transparent>
+      {/* Floating Create Button */}
+      <TouchableOpacity style={styles.createButton} onPress={openCreateModal}>
+        <Ionicons name="add" size={30} color="#fff" />
+      </TouchableOpacity>
+
+      {/* Modal */}
+      <Modal visible={modalVisible} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>New Group</Text>
+            <Text style={styles.modalTitle}>✨ New Group</Text>
 
             <TextInput
               placeholder="Group Name"
@@ -211,15 +221,22 @@ const CreateGroup = () => {
               onChangeText={setMembers}
             />
 
-            <Text style={styles.groupCodeLabel}>Group Code: {groupCode}</Text>
+            <Text style={styles.groupCodeLabel}>
+              Group Code: {groupCode}
+            </Text>
 
             <View style={styles.modalButtons}>
               <TouchableOpacity onPress={() => setModalVisible(false)}>
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.saveButton} onPress={handleSaveGroup}>
-                <Text style={styles.saveButtonText}>Save</Text>
-              </TouchableOpacity>
+              <LinearGradient
+                colors={["#ff7e5f", "#feb47b"]}
+                style={styles.saveButton}
+              >
+                <TouchableOpacity onPress={handleSaveGroup}>
+                  <Text style={styles.saveButtonText}>Save</Text>
+                </TouchableOpacity>
+              </LinearGradient>
             </View>
           </View>
         </View>
@@ -232,21 +249,29 @@ export default CreateGroup;
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 20 },
-  createButton: {
-    flexDirection: "row",
-    backgroundColor: "rgba(255,255,255,0.25)",
-    paddingVertical: 14,
-    borderRadius: 30,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 20,
-    backdropFilter: "blur(10px)",
-  },
-  createButtonText: {
+  headerText: {
+    fontSize: 26,
+    fontWeight: "900",
     color: "#fff",
-    fontSize: 16,
-    fontWeight: "700",
-    marginLeft: 8,
+    textAlign: "center",
+    marginTop: 10,
+    marginBottom: 20,
+    letterSpacing: 1,
+  },
+  createButton: {
+    position: "absolute",
+    bottom: 30,
+    right: 25,
+    backgroundColor: "#ff7e5f",
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
   },
   emptyText: {
     textAlign: "center",
@@ -255,34 +280,46 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "500",
   },
-  listContainer: { paddingBottom: 20 },
+  listContainer: { paddingBottom: 80 },
   card: {
     flexDirection: "row",
     backgroundColor: "rgba(255,255,255,0.15)",
-    borderRadius: 18,
+    borderRadius: 22,
     padding: 18,
     marginBottom: 15,
     alignItems: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
   },
-  cardTitle: { fontSize: 16, fontWeight: "700", color: "#fff" },
-  cardCode: { fontSize: 18, fontWeight: "600", color: "#fff", marginTop: 4 },
+  cardTitle: { fontSize: 18, fontWeight: "800", color: "#fff" },
+  cardCode: {
+    fontSize: 14,
+    fontFamily: "monospace",
+    color: "#eee",
+    marginTop: 4,
+  },
   deleteButton: {
     padding: 10,
     borderRadius: 50,
-    backgroundColor: "rgba(255,0,0,0.7)",
+    backgroundColor: "rgba(255,0,0,0.75)",
     marginLeft: 10,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "center",
-    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "flex-end",
   },
   modalContent: {
-    width: "90%",
     backgroundColor: "#fff",
-    borderRadius: 20,
+    borderTopLeftRadius: 25,
+    borderTopRightRadius: 25,
     padding: 20,
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: -3 },
   },
   modalTitle: {
     fontSize: 20,
@@ -309,6 +346,7 @@ const styles = StyleSheet.create({
   modalButtons: {
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "center",
     marginTop: 10,
   },
   cancelButtonText: {
@@ -317,7 +355,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   saveButton: {
-    backgroundColor: "#ff7e5f",
     paddingVertical: 10,
     paddingHorizontal: 24,
     borderRadius: 12,
