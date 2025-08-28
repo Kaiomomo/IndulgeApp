@@ -7,6 +7,7 @@ import {
   StyleSheet,
   ScrollView,
   Alert,
+  Linking,
 } from "react-native";
 import { onAuthStateChanged } from "firebase/auth";
 import {
@@ -20,7 +21,6 @@ import {
 } from "firebase/firestore";
 import { auth, db } from "../FirebaseConfig";
 import { LinearGradient } from "expo-linear-gradient";
-import { Linking } from "react-native";
 import Svg, { Circle } from "react-native-svg";
 import { useRoute } from "@react-navigation/native";
 import Animated, {
@@ -58,13 +58,14 @@ const HomeScreen = ({ navigation }) => {
     }
   }, [route.params]);
 
+  // 🔹 Listen to auth + groups
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         await currentUser.reload();
         setUser(auth.currentUser);
 
-        // listen for any groups the user is part of
+        // listen for groups
         const q = query(
           collection(db, "groups"),
           where("membersUIDs", "array-contains", currentUser.uid)
@@ -75,14 +76,13 @@ const HomeScreen = ({ navigation }) => {
             const groupDoc = snapshot.docs[0];
             const groupRef = doc(db, "groups", groupDoc.id);
 
-            // listen to this specific group
+            // listen to this group
             const unsubscribeGroup = onSnapshot(groupRef, (snap) => {
               if (snap.exists()) {
                 const data = snap.data();
 
-                // check if still a member
+                // kicked from group
                 if (!data.membersUIDs?.includes(currentUser.uid)) {
-                  // user was kicked
                   setJoinedGroup(null);
                   setToiletUsers([]);
                   setIsOnToilet(false);
@@ -100,9 +100,7 @@ const HomeScreen = ({ navigation }) => {
                 const me = list.find((u) => u.uid === currentUser.uid);
                 if (me) {
                   setIsOnToilet(true);
-                  if (me.expiresAt) {
-                    setEndTime(me.expiresAt);
-                  }
+                  if (me.expiresAt) setEndTime(me.expiresAt);
                 } else {
                   setIsOnToilet(false);
                   setEndTime(null);
@@ -120,7 +118,7 @@ const HomeScreen = ({ navigation }) => {
 
             return () => unsubscribeGroup();
           } else {
-            // no group joined
+            // no group
             setJoinedGroup(null);
             setToiletUsers([]);
             setIsOnToilet(false);
@@ -143,7 +141,7 @@ const HomeScreen = ({ navigation }) => {
     return () => unsubscribeAuth();
   }, []);
 
-  // timer + animation
+  // 🔹 Toilet timer + progress animation
   useEffect(() => {
     let interval;
     if (isOnToilet && endTime) {
@@ -159,30 +157,42 @@ const HomeScreen = ({ navigation }) => {
 
         if (left <= 0) {
           clearInterval(interval);
-          Alert.alert(
-            "⏳ Time’s Up!",
-            "Are you still in the toilet?",
-            [
-              {
-                text: "No, I’m done ✅",
-                onPress: () => handleToiletToggle(true),
-                style: "destructive",
-              },
-              {
-                text: "Yes, still here 🚽",
-                onPress: () => {
-                  const newExpiry = Date.now() + 10 * 60 * 1000;
-                  setEndTime(newExpiry);
-                  const groupRef = doc(db, "groups", joinedGroup.id);
-                  const updatedList = toiletUsers.map((u) =>
-                    u.uid === user.uid ? { ...u, expiresAt: newExpiry } : u
-                  );
-                  updateDoc(groupRef, { toiletStatus: updatedList });
+
+          (async () => {
+            if (!joinedGroup || !user) return;
+            const groupRef = doc(db, "groups", joinedGroup.id);
+            const updatedList = toiletUsers.filter((u) => u.uid !== user.uid);
+            await updateDoc(groupRef, { toiletStatus: updatedList });
+
+            setIsOnToilet(false);
+            setEndTime(null);
+            setRemainingTime(0);
+
+            Alert.alert(
+              "⏳ Time’s Up!",
+              "Are you still in the toilet?",
+              [
+                {
+                  text: "No, I’m done ✅",
+                  onPress: () => handleToiletToggle(),
+                  style: "destructive",
                 },
-              },
-            ],
-            { cancelable: false }
-          );
+                {
+                  text: "Yes, still here 🚽",
+                  onPress: async () => {
+                    const newExpiry = Date.now() + 10 * 60 * 1000;
+                    setEndTime(newExpiry);
+                    const groupRef = doc(db, "groups", joinedGroup.id);
+                    const updatedList = toiletUsers.map((u) =>
+                      u.uid === user.uid ? { ...u, expiresAt: newExpiry } : u
+                    );
+                    await updateDoc(groupRef, { toiletStatus: updatedList });
+                  },
+                },
+              ],
+              { cancelable: false }
+            );
+          })();
         }
       }, 1000);
     } else {
@@ -191,7 +201,7 @@ const HomeScreen = ({ navigation }) => {
     }
 
     return () => clearInterval(interval);
-  }, [isOnToilet, endTime]);
+  }, [isOnToilet, endTime, joinedGroup, toiletUsers, user]);
 
   const animatedProps = useAnimatedProps(() => ({
     strokeDashoffset: progress.value,
@@ -203,7 +213,13 @@ const HomeScreen = ({ navigation }) => {
 
     try {
       if (!isOnToilet) {
-        const expiry = Date.now() + 10 * 60 * 1000;
+
+        if (toiletUsers.length>0){
+          Alert.alert("🚫 Occupied ");
+          return; 
+        }
+
+        const expiry = Date.now() + 1 * 60 * 1000;
         await updateDoc(groupRef, {
           toiletStatus: arrayUnion({
             uid: user.uid,
@@ -215,9 +231,7 @@ const HomeScreen = ({ navigation }) => {
         });
       } else {
         const updatedList = toiletUsers.filter((u) => u.uid !== user.uid);
-        await updateDoc(groupRef, {
-          toiletStatus: updatedList,
-        });
+        await updateDoc(groupRef, { toiletStatus: updatedList });
       }
     } catch (error) {
       console.error("Error updating toilet status:", error);
@@ -260,7 +274,7 @@ const HomeScreen = ({ navigation }) => {
       </Animated.View>
 
       <ScrollView contentContainerStyle={styles.container}>
-        {/* Profile Badge as Button */}
+        {/* Profile Badge */}
         {user && (
           <TouchableOpacity
             onPress={() => navigation.navigate("Profile")}
@@ -269,54 +283,34 @@ const HomeScreen = ({ navigation }) => {
           >
             <View style={styles.avatarCircle}>
               <Text style={styles.avatarText}>
-                {user.displayName
-                  ? user.displayName.charAt(0).toUpperCase()
-                  : "U"}
+                {user.displayName ? user.displayName.charAt(0).toUpperCase() : "U"}
               </Text>
             </View>
-            <Text style={styles.profileText}>
-              {user.displayName || user.email}
-            </Text>
+            <Text style={styles.profileText}>{user.displayName || user.email}</Text>
           </TouchableOpacity>
         )}
 
-        {/* Buttons */}
+        {/* Group Button */}
         {joinedGroup && (
           <TouchableOpacity
-            onPress={() =>
-              navigation.navigate("GroupEdit", { group: joinedGroup })
-            }
+            onPress={() => navigation.navigate("GroupEdit", { group: joinedGroup })}
             activeOpacity={0.85}
           >
-            <LinearGradient
-              colors={["#6a11cb", "#2575fc"]}
-              style={styles.buttonGradient}
-            >
+            <LinearGradient colors={["#6a11cb", "#2575fc"]} style={styles.buttonGradient}>
               <Text style={styles.buttonText}>🏠 {joinedGroup.name}</Text>
             </LinearGradient>
           </TouchableOpacity>
         )}
 
-        <TouchableOpacity
-          onPress={() => navigation.navigate("CreateGroup")}
-          activeOpacity={0.85}
-        >
-          <LinearGradient
-            colors={["#ff7e5f", "#feb47b"]}
-            style={styles.buttonGradient}
-          >
+        {/* Navigation Buttons */}
+        <TouchableOpacity onPress={() => navigation.navigate("CreateGroup")} activeOpacity={0.85}>
+          <LinearGradient colors={["#ff7e5f", "#feb47b"]} style={styles.buttonGradient}>
             <Text style={styles.buttonText}>➕ Create Group</Text>
           </LinearGradient>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          onPress={() => navigation.navigate("JoinGroup")}
-          activeOpacity={0.85}
-        >
-          <LinearGradient
-            colors={["#43cea2", "#185a9d"]}
-            style={styles.buttonGradient}
-          >
+        <TouchableOpacity onPress={() => navigation.navigate("JoinGroup")} activeOpacity={0.85}>
+          <LinearGradient colors={["#43cea2", "#185a9d"]} style={styles.buttonGradient}>
             <Text style={styles.buttonText}>👥 Join Group</Text>
           </LinearGradient>
         </TouchableOpacity>
@@ -325,13 +319,8 @@ const HomeScreen = ({ navigation }) => {
           onPress={() => navigation.navigate(user ? "Profile" : "SignUp")}
           activeOpacity={0.85}
         >
-          <LinearGradient
-            colors={["#ff512f", "#dd2476"]}
-            style={styles.buttonGradient}
-          >
-            <Text style={styles.buttonText}>
-              {user ? "👤 Profile" : "📝 Sign Up"}
-            </Text>
+          <LinearGradient colors={["#ff512f", "#dd2476"]} style={styles.buttonGradient}>
+            <Text style={styles.buttonText}>{user ? "👤 Profile" : "📝 Sign Up"}</Text>
           </LinearGradient>
         </TouchableOpacity>
 
@@ -339,27 +328,17 @@ const HomeScreen = ({ navigation }) => {
           onPress={() => Linking.openURL("https://discord.gg/QydjNauSaV")}
           activeOpacity={0.85}
         >
-          <LinearGradient
-            colors={["#5865F2", "#4752C4"]}
-            style={styles.buttonGradient}
-          >
+          <LinearGradient colors={["#5865F2", "#4752C4"]} style={styles.buttonGradient}>
             <Text style={styles.buttonText}>💬 Discord</Text>
           </LinearGradient>
         </TouchableOpacity>
 
-        {/* Toilet Timer with Gradient Button */}
+        {/* Toilet Timer */}
         {joinedGroup && (
           <View style={{ alignItems: "center" }}>
-            <TouchableOpacity
-              onPress={() => handleToiletToggle()}
-              activeOpacity={0.85}
-            >
+            <TouchableOpacity onPress={handleToiletToggle} activeOpacity={0.85}>
               <LinearGradient
-                colors={
-                  isOnToilet
-                    ? ["#43e97b", "#38f9d7"]
-                    : ["#ff416c", "#ff4b2b"]
-                }
+                colors={isOnToilet ? ["#43e97b", "#38f9d7"] : ["#ff416c", "#ff4b2b"]}
                 style={styles.toiletButtonGradient}
               >
                 <Text style={styles.toiletButtonText}>
@@ -371,14 +350,7 @@ const HomeScreen = ({ navigation }) => {
             {isOnToilet && (
               <View style={{ marginTop: 25, alignItems: "center" }}>
                 <Svg height="140" width="140">
-                  <Circle
-                    cx="70"
-                    cy="70"
-                    r={radius}
-                    stroke="#eee"
-                    strokeWidth="10"
-                    fill="none"
-                  />
+                  <Circle cx="70" cy="70" r={radius} stroke="#eee" strokeWidth="10" fill="none" />
                   <AnimatedCircle
                     cx="70"
                     cy="70"
@@ -417,9 +389,7 @@ const HomeScreen = ({ navigation }) => {
 export default HomeScreen;
 
 const styles = StyleSheet.create({
-  gradient: {
-    flex: 1,
-  },
+  gradient: { flex: 1 },
   container: {
     flexGrow: 1,
     justifyContent: "center",
@@ -427,7 +397,6 @@ const styles = StyleSheet.create({
     paddingVertical: 50,
     gap: 20,
   },
-  // profile badge
   profileContainer: {
     position: "absolute",
     top: 50,
@@ -452,17 +421,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginRight: 10,
   },
-  avatarText: {
-    color: "#fff",
-    fontWeight: "700",
-    fontSize: 16,
-  },
-  profileText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#333",
-  },
-  // generic gradient buttons
+  avatarText: { color: "#fff", fontWeight: "700", fontSize: 16 },
+  profileText: { fontSize: 15, fontWeight: "600", color: "#333" },
   buttonGradient: {
     paddingVertical: 14,
     paddingHorizontal: 28,
@@ -475,12 +435,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 3 },
   },
-  buttonText: {
-    color: "#fff",
-    fontSize: 17,
-    fontWeight: "600",
-  },
-  // toilet action button
+  buttonText: { color: "#fff", fontSize: 17, fontWeight: "600" },
   toiletButtonGradient: {
     paddingVertical: 16,
     paddingHorizontal: 28,
@@ -493,12 +448,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 3 },
   },
-  toiletButtonText: {
-    color: "#fff",
-    fontSize: 18,
-    fontWeight: "700",
-  },
-  // 🚽 toast styles
+  toiletButtonText: { color: "#fff", fontSize: 18, fontWeight: "700" },
   toastContainer: {
     position: "absolute",
     top: 40,
@@ -513,14 +463,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     zIndex: 999,
   },
-  toastTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    marginBottom: 6,
-    color: "#444",
-  },
-  toastText: {
-    fontSize: 15,
-    color: "#555",
-  },
+  toastTitle: { fontSize: 16, fontWeight: "700", marginBottom: 6, color: "#444" },
+  toastText: { fontSize: 15, color: "#555" },
 });
