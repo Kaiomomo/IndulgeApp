@@ -14,6 +14,7 @@ import { db } from "../FirebaseConfig";
 import { getAuth } from "firebase/auth";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { BlurView } from "expo-blur";
 
 const GroupEdit = ({ route, navigation }) => {
   const { group } = route.params || {};
@@ -111,6 +112,20 @@ const GroupEdit = ({ route, navigation }) => {
     );
   };
 
+  const renderAvatar = (username) => {
+    const initial = username?.[0]?.toUpperCase() || "?";
+    return (
+      <LinearGradient
+        colors={["#6a11cb", "#2575fc"]}
+        style={styles.avatar}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      >
+        <Text style={styles.avatarText}>{initial}</Text>
+      </LinearGradient>
+    );
+  };
+
   if (loading) {
     return (
       <LinearGradient colors={["#6a11cb", "#2575fc"]} style={styles.background}>
@@ -137,23 +152,23 @@ const GroupEdit = ({ route, navigation }) => {
         ListHeaderComponent={
           <View style={styles.container}>
             {/* Group Header */}
-            <View style={styles.headerCard}>
+            <BlurView intensity={40} tint="dark" style={styles.headerCard}>
               <Ionicons name="people-circle-outline" size={50} color="#fff" />
               <Text style={styles.groupName}>{groupData.name}</Text>
               <Text style={styles.ownerName}>
                 👑 {groupData.ownerName || "Unknown"}
               </Text>
-            </View>
+            </BlurView>
 
             {/* Members Card */}
-            <View style={styles.membersCard}>
+            <BlurView intensity={40} tint="dark" style={styles.membersCard}>
               <Text style={styles.sectionTitle}>👥 Members</Text>
 
               {groupData.members?.length > 0 ? (
                 groupData.members.map((item) => (
                   <View key={item.uid} style={styles.memberRow}>
                     <View style={styles.memberInfo}>
-                      <Ionicons name="person-circle" size={30} color="#4da6ff" />
+                      {renderAvatar(item.username)}
                       <Text style={styles.memberName}>
                         {item.username || "Anonymous"}
                         {item.uid === groupData.ownerId && " 👑"}
@@ -174,7 +189,7 @@ const GroupEdit = ({ route, navigation }) => {
               ) : (
                 <Text style={styles.emptyText}>No members yet</Text>
               )}
-            </View>
+            </BlurView>
           </View>
         }
         contentContainerStyle={{ paddingBottom: 100 }}
@@ -217,27 +232,39 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 28,
     borderRadius: 24,
-    backgroundColor: "rgba(255,255,255,0.08)",
+    overflow: "hidden",
   },
   groupName: { fontSize: 24, fontWeight: "700", color: "#fff", marginTop: 10 },
   ownerName: { fontSize: 15, fontWeight: "500", color: "#ddd", marginTop: 4 },
   membersCard: {
-    backgroundColor: "rgba(255,255,255,0.08)",
     borderRadius: 20,
     padding: 16,
     gap: 12,
+    overflow: "hidden",
   },
   sectionTitle: { fontSize: 18, fontWeight: "700", color: "#fff" },
   memberRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.1)",
+    backgroundColor: "rgba(255,255,255,0.08)",
     padding: 12,
     borderRadius: 14,
   },
-  memberInfo: { flexDirection: "row", alignItems: "center", gap: 10 },
+  memberInfo: { flexDirection: "row", alignItems: "center", gap: 12 },
   memberName: { fontSize: 15, fontWeight: "600", color: "#fff" },
+  avatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  avatarText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 16,
+  },
   kickButton: {
     backgroundColor: "#ff4b2b",
     paddingVertical: 6,
