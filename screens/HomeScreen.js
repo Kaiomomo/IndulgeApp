@@ -88,7 +88,6 @@ const HomeScreen = ({ navigation }) => {
                   setIsOnToilet(false);
                   setEndTime(null);
                   setRemainingTime(0);
-                  Alert.alert("Removed", "You were removed from the group.");
                   return;
                 }
 
@@ -213,13 +212,12 @@ const HomeScreen = ({ navigation }) => {
 
     try {
       if (!isOnToilet) {
-
-        if (toiletUsers.length>0){
+        if (toiletUsers.length > 0) {
           Alert.alert("🚫 Occupied ");
-          return; 
+          return;
         }
 
-        const expiry = Date.now() + 1 * 60 * 1000;
+        const expiry = Date.now() + 10 * 60 * 1000;
         await updateDoc(groupRef, {
           toiletStatus: arrayUnion({
             uid: user.uid,
@@ -248,7 +246,10 @@ const HomeScreen = ({ navigation }) => {
   // 🚽 Toast animation effect
   useEffect(() => {
     if (toiletUsers.length > 0) {
-      toastTranslateY.value = withTiming(0, { duration: 400, easing: Easing.out(Easing.ease) });
+      toastTranslateY.value = withTiming(0, {
+        duration: 400,
+        easing: Easing.out(Easing.ease),
+      });
       toastOpacity.value = withTiming(1, { duration: 400 });
     } else {
       toastTranslateY.value = withTiming(-100, { duration: 300 });
@@ -262,7 +263,7 @@ const HomeScreen = ({ navigation }) => {
   }));
 
   return (
-    <LinearGradient colors={["#e6f0ff", "#ffffff"]} style={styles.gradient}>
+    <LinearGradient colors={["#1c1c1e", "#2c2c2e"]} style={styles.gradient}>
       {/* 🚽 Floating Toilet Alert */}
       <Animated.View style={[styles.toastContainer, toastStyle]}>
         <Text style={styles.toastTitle}>🚽 Toilet Alert</Text>
@@ -283,34 +284,55 @@ const HomeScreen = ({ navigation }) => {
           >
             <View style={styles.avatarCircle}>
               <Text style={styles.avatarText}>
-                {user.displayName ? user.displayName.charAt(0).toUpperCase() : "U"}
+                {user.displayName
+                  ? user.displayName.charAt(0).toUpperCase()
+                  : "U"}
               </Text>
             </View>
-            <Text style={styles.profileText}>{user.displayName || user.email}</Text>
+            <Text style={styles.profileText}>
+              {user.displayName || user.email}
+            </Text>
           </TouchableOpacity>
         )}
 
         {/* Group Button */}
         {joinedGroup && (
           <TouchableOpacity
-            onPress={() => navigation.navigate("GroupEdit", { group: joinedGroup })}
+            onPress={() =>
+              navigation.navigate("GroupEdit", { group: joinedGroup })
+            }
             activeOpacity={0.85}
           >
-            <LinearGradient colors={["#6a11cb", "#2575fc"]} style={styles.buttonGradient}>
+            <LinearGradient
+              colors={["#6a11cb", "#2575fc"]}
+              style={styles.buttonGradient}
+            >
               <Text style={styles.buttonText}>🏠 {joinedGroup.name}</Text>
             </LinearGradient>
           </TouchableOpacity>
         )}
 
         {/* Navigation Buttons */}
-        <TouchableOpacity onPress={() => navigation.navigate("CreateGroup")} activeOpacity={0.85}>
-          <LinearGradient colors={["#ff7e5f", "#feb47b"]} style={styles.buttonGradient}>
+        <TouchableOpacity
+          onPress={() => navigation.navigate("CreateGroup")}
+          activeOpacity={0.85}
+        >
+          <LinearGradient
+            colors={["#ff7e5f", "#feb47b"]}
+            style={styles.buttonGradient}
+          >
             <Text style={styles.buttonText}>➕ Create Group</Text>
           </LinearGradient>
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={() => navigation.navigate("JoinGroup")} activeOpacity={0.85}>
-          <LinearGradient colors={["#43cea2", "#185a9d"]} style={styles.buttonGradient}>
+        <TouchableOpacity
+          onPress={() => navigation.navigate("JoinGroup")}
+          activeOpacity={0.85}
+        >
+          <LinearGradient
+            colors={["#43cea2", "#185a9d"]}
+            style={styles.buttonGradient}
+          >
             <Text style={styles.buttonText}>👥 Join Group</Text>
           </LinearGradient>
         </TouchableOpacity>
@@ -319,8 +341,13 @@ const HomeScreen = ({ navigation }) => {
           onPress={() => navigation.navigate(user ? "Profile" : "SignUp")}
           activeOpacity={0.85}
         >
-          <LinearGradient colors={["#ff512f", "#dd2476"]} style={styles.buttonGradient}>
-            <Text style={styles.buttonText}>{user ? "👤 Profile" : "📝 Sign Up"}</Text>
+          <LinearGradient
+            colors={["#ff512f", "#dd2476"]}
+            style={styles.buttonGradient}
+          >
+            <Text style={styles.buttonText}>
+              {user ? "👤 Profile" : "📝 Sign Up"}
+            </Text>
           </LinearGradient>
         </TouchableOpacity>
 
@@ -328,7 +355,10 @@ const HomeScreen = ({ navigation }) => {
           onPress={() => Linking.openURL("https://discord.gg/QydjNauSaV")}
           activeOpacity={0.85}
         >
-          <LinearGradient colors={["#5865F2", "#4752C4"]} style={styles.buttonGradient}>
+          <LinearGradient
+            colors={["#5865F2", "#4752C4"]}
+            style={styles.buttonGradient}
+          >
             <Text style={styles.buttonText}>💬 Discord</Text>
           </LinearGradient>
         </TouchableOpacity>
@@ -338,7 +368,11 @@ const HomeScreen = ({ navigation }) => {
           <View style={{ alignItems: "center" }}>
             <TouchableOpacity onPress={handleToiletToggle} activeOpacity={0.85}>
               <LinearGradient
-                colors={isOnToilet ? ["#43e97b", "#38f9d7"] : ["#ff416c", "#ff4b2b"]}
+                colors={
+                  isOnToilet
+                    ? ["#43e97b", "#38f9d7"]
+                    : ["#ff416c", "#ff4b2b"]
+                }
                 style={styles.toiletButtonGradient}
               >
                 <Text style={styles.toiletButtonText}>
@@ -350,7 +384,14 @@ const HomeScreen = ({ navigation }) => {
             {isOnToilet && (
               <View style={{ marginTop: 25, alignItems: "center" }}>
                 <Svg height="140" width="140">
-                  <Circle cx="70" cy="70" r={radius} stroke="#eee" strokeWidth="10" fill="none" />
+                  <Circle
+                    cx="70"
+                    cy="70"
+                    r={radius}
+                    stroke="#444"
+                    strokeWidth="10"
+                    fill="none"
+                  />
                   <AnimatedCircle
                     cx="70"
                     cy="70"
@@ -371,7 +412,7 @@ const HomeScreen = ({ navigation }) => {
                       textAlign: "center",
                       fontSize: 22,
                       fontWeight: "bold",
-                      color: "#333",
+                      color: "#fff",
                     }}
                   >
                     {formatTime(remainingTime)}
@@ -389,7 +430,7 @@ const HomeScreen = ({ navigation }) => {
 export default HomeScreen;
 
 const styles = StyleSheet.create({
-  gradient: { flex: 1 },
+  gradient: { flex: 1, backgroundColor: "#1c1c1e" },
   container: {
     flexGrow: 1,
     justifyContent: "center",
@@ -406,11 +447,12 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 14,
     borderRadius: 30,
-    backgroundColor: "rgba(255, 255, 255, 0.75)",
-    shadowColor: "#000",
-    shadowOpacity: 0.15,
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    shadowColor: "#4da6ff", // subtle glow
+    shadowOpacity: 0.45,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
   },
   avatarCircle: {
     width: 32,
@@ -422,7 +464,7 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   avatarText: { color: "#fff", fontWeight: "700", fontSize: 16 },
-  profileText: { fontSize: 15, fontWeight: "600", color: "#333" },
+  profileText: { fontSize: 15, fontWeight: "600", color: "#eee" },
   buttonGradient: {
     paddingVertical: 14,
     paddingHorizontal: 28,
@@ -430,10 +472,11 @@ const styles = StyleSheet.create({
     minWidth: 240,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
+    shadowColor: "#4da6ff", // button glow
+    shadowOpacity: 0.45,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
   },
   buttonText: { color: "#fff", fontSize: 17, fontWeight: "600" },
   toiletButtonGradient: {
@@ -443,10 +486,11 @@ const styles = StyleSheet.create({
     minWidth: 260,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
+    shadowColor: "#43e97b", // glow when active
+    shadowOpacity: 0.5,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 8,
   },
   toiletButtonText: { color: "#fff", fontSize: 18, fontWeight: "700" },
   toastContainer: {
@@ -456,13 +500,13 @@ const styles = StyleSheet.create({
     right: 20,
     padding: 16,
     borderRadius: 18,
-    backgroundColor: "#fff",
+    backgroundColor: "#1e1e1e",
     shadowColor: "#000",
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
     zIndex: 999,
   },
-  toastTitle: { fontSize: 16, fontWeight: "700", marginBottom: 6, color: "#444" },
-  toastText: { fontSize: 15, color: "#555" },
+  toastTitle: { fontSize: 16, fontWeight: "700", marginBottom: 6, color: "#fff" },
+  toastText: { fontSize: 15, color: "#ccc" },
 });
