@@ -18,6 +18,7 @@ import {
   doc,
   updateDoc,
   arrayUnion,
+  getDoc,
 } from "firebase/firestore";
 import { auth, db } from "../FirebaseConfig";
 import { LinearGradient } from "expo-linear-gradient";
@@ -38,16 +39,17 @@ const HomeScreen = ({ navigation }) => {
   const [user, setUser] = useState(null);
   const [joinedGroup, setJoinedGroup] = useState(null);
   const [toiletUsers, setToiletUsers] = useState([]);
+  const [nextInLine, setNextInLine] = useState(null);
   const [isOnToilet, setIsOnToilet] = useState(false);
   const [endTime, setEndTime] = useState(null);
   const [remainingTime, setRemainingTime] = useState(0);
 
-  // circle progress
+  // Circle progress
   const radius = 40;
   const circumference = 2 * Math.PI * radius;
   const progress = useSharedValue(circumference);
 
-  // toast animation
+  // Toast animation
   const toastTranslateY = useSharedValue(-100);
   const toastOpacity = useSharedValue(0);
 
@@ -65,7 +67,6 @@ const HomeScreen = ({ navigation }) => {
         await currentUser.reload();
         setUser(auth.currentUser);
 
-        // listen for groups
         const q = query(
           collection(db, "groups"),
           where("membersUIDs", "array-contains", currentUser.uid)
@@ -76,18 +77,13 @@ const HomeScreen = ({ navigation }) => {
             const groupDoc = snapshot.docs[0];
             const groupRef = doc(db, "groups", groupDoc.id);
 
-            // listen to this group
             const unsubscribeGroup = onSnapshot(groupRef, (snap) => {
               if (snap.exists()) {
                 const data = snap.data();
 
-                // kicked from group
+                // Kicked from group
                 if (!data.membersUIDs?.includes(currentUser.uid)) {
-                  setJoinedGroup(null);
-                  setToiletUsers([]);
-                  setIsOnToilet(false);
-                  setEndTime(null);
-                  setRemainingTime(0);
+                  resetState();
                   return;
                 }
 
@@ -95,6 +91,7 @@ const HomeScreen = ({ navigation }) => {
 
                 const list = data.toiletStatus || [];
                 setToiletUsers(list);
+                setNextInLine(data.nextInLine || null);
 
                 const me = list.find((u) => u.uid === currentUser.uid);
                 if (me) {
@@ -106,39 +103,34 @@ const HomeScreen = ({ navigation }) => {
                   setRemainingTime(0);
                 }
               } else {
-                // group deleted
-                setJoinedGroup(null);
-                setToiletUsers([]);
-                setIsOnToilet(false);
-                setEndTime(null);
-                setRemainingTime(0);
+                resetState();
               }
             });
 
             return () => unsubscribeGroup();
           } else {
-            // no group
-            setJoinedGroup(null);
-            setToiletUsers([]);
-            setIsOnToilet(false);
-            setEndTime(null);
-            setRemainingTime(0);
+            resetState();
           }
         });
 
         return () => unsubscribeGroupQuery();
       } else {
-        setUser(null);
-        setJoinedGroup(null);
-        setToiletUsers([]);
-        setIsOnToilet(false);
-        setEndTime(null);
-        setRemainingTime(0);
+        resetState();
       }
     });
 
     return () => unsubscribeAuth();
   }, []);
+
+  const resetState = () => {
+    setUser(null);
+    setJoinedGroup(null);
+    setToiletUsers([]);
+    setNextInLine(null);
+    setIsOnToilet(false);
+    setEndTime(null);
+    setRemainingTime(0);
+  };
 
   // 🔹 Toilet timer + progress animation
   useEffect(() => {
@@ -156,42 +148,7 @@ const HomeScreen = ({ navigation }) => {
 
         if (left <= 0) {
           clearInterval(interval);
-
-          (async () => {
-            if (!joinedGroup || !user) return;
-            const groupRef = doc(db, "groups", joinedGroup.id);
-            const updatedList = toiletUsers.filter((u) => u.uid !== user.uid);
-            await updateDoc(groupRef, { toiletStatus: updatedList });
-
-            setIsOnToilet(false);
-            setEndTime(null);
-            setRemainingTime(0);
-
-            Alert.alert(
-              "⏳ Time’s Up!",
-              "Are you still in the toilet?",
-              [
-                {
-                  text: "No, I’m done ✅",
-                  onPress: () => handleToiletToggle(),
-                  style: "destructive",
-                },
-                {
-                  text: "Yes, still here 🚽",
-                  onPress: async () => {
-                    const newExpiry = Date.now() + 10 * 60 * 1000;
-                    setEndTime(newExpiry);
-                    const groupRef = doc(db, "groups", joinedGroup.id);
-                    const updatedList = toiletUsers.map((u) =>
-                      u.uid === user.uid ? { ...u, expiresAt: newExpiry } : u
-                    );
-                    await updateDoc(groupRef, { toiletStatus: updatedList });
-                  },
-                },
-              ],
-              { cancelable: false }
-            );
-          })();
+          handleFinishIndulge();
         }
       }, 1000);
     } else {
@@ -206,38 +163,88 @@ const HomeScreen = ({ navigation }) => {
     strokeDashoffset: progress.value,
   }));
 
+  const handleFinishIndulge = async () => {
+    if (!joinedGroup || !user) return;
+    const groupRef = doc(db, "groups", joinedGroup.id);
+
+    try {
+      const updatedList = toiletUsers.filter((u) => u.uid !== user.uid);
+      let updateData = { toiletStatus: updatedList };
+
+      if (nextInLine) {
+        const expiry = Date.now() + 10 * 60 * 1000;
+        updateData.toiletStatus = [
+          {
+            uid: nextInLine.uid,
+            username: nextInLine.username,
+            status: "inToilet",
+            timestamp: Date.now(),
+            expiresAt: expiry,
+          },
+        ];
+        updateData.nextInLine = null;
+      }
+
+      await updateDoc(groupRef, updateData);
+      setIsOnToilet(false);
+      setEndTime(null);
+      setRemainingTime(0);
+    } catch (error) {
+      console.error("Error finishing indulge:", error);
+    }
+  };
+
   const handleToiletToggle = async () => {
     if (!joinedGroup || !user) return;
     const groupRef = doc(db, "groups", joinedGroup.id);
 
     try {
+      const snap = await getDoc(groupRef);
+      if (!snap.exists()) return;
+      const data = snap.data();
+      const toiletList = data.toiletStatus || [];
+      const next = data.nextInLine || null;
+
       if (!isOnToilet) {
-        if (toiletUsers.length > 0) {
-          Alert.alert("🚫 Occupied ");
-          return;
+        if (toiletList.length === 0) {
+          // 🚽 Free → user goes in
+          const expiry = Date.now() + 10 * 60 * 1000;
+          await updateDoc(groupRef, {
+            toiletStatus: arrayUnion({
+              uid: user.uid,
+              username: user.displayName || "Anonymous",
+              status: "inToilet",
+              timestamp: Date.now(),
+              expiresAt: expiry,
+            }),
+            nextInLine: null,
+          });
+
+          // Update indulgeCount
+          const updatedMembers = (joinedGroup.members || []).map((m) =>
+            m.uid === user.uid
+              ? { ...m, indulgeCount: (m.indulgeCount || 0) + 1 }
+              : m
+          );
+          await updateDoc(groupRef, { members: updatedMembers });
+        } else {
+          // 🚽 Occupied → handle next in line
+          if (!next) {
+            await updateDoc(groupRef, {
+              nextInLine: {
+                uid: user.uid,
+                username: user.displayName || "Anonymous",
+                joinedAt: Date.now(),
+              },
+            });
+            Alert.alert("⏳ You’re next in line!");
+          } else {
+            Alert.alert("🚫 Occupied and someone’s already next in line!");
+          }
         }
-
-        const expiry = Date.now() + 10 * 60 * 1000;
-        await updateDoc(groupRef, {
-          toiletStatus: arrayUnion({
-            uid: user.uid,
-            username: user.displayName || "Anonymous",
-            status: "inToilet",
-            timestamp: Date.now(),
-            expiresAt: expiry,
-          }),
-        });
-
-        // 🔹 update indulgeCount inside members
-        const updatedMembers = (joinedGroup.members || []).map((m) =>
-          m.uid === user.uid
-            ? { ...m, indulgeCount: (m.indulgeCount || 0) + 1 }
-            : m
-        );
-        await updateDoc(groupRef, { members: updatedMembers });
       } else {
-        const updatedList = toiletUsers.filter((u) => u.uid !== user.uid);
-        await updateDoc(groupRef, { toiletStatus: updatedList });
+        // ✅ Finished
+        handleFinishIndulge();
       }
     } catch (error) {
       console.error("Error updating toilet status:", error);
@@ -253,7 +260,7 @@ const HomeScreen = ({ navigation }) => {
 
   // 🚽 Toast animation effect
   useEffect(() => {
-    if (toiletUsers.length > 0) {
+    if (toiletUsers.length > 0 || nextInLine) {
       toastTranslateY.value = withTiming(0, {
         duration: 400,
         easing: Easing.out(Easing.ease),
@@ -263,7 +270,7 @@ const HomeScreen = ({ navigation }) => {
       toastTranslateY.value = withTiming(-100, { duration: 300 });
       toastOpacity.value = withTiming(0, { duration: 300 });
     }
-  }, [toiletUsers]);
+  }, [toiletUsers, nextInLine]);
 
   const toastStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: toastTranslateY.value }],
@@ -280,6 +287,11 @@ const HomeScreen = ({ navigation }) => {
             {u.username} is in the toilet...
           </Text>
         ))}
+        {nextInLine && (
+          <Text style={styles.toastText}>
+            ⏳ {nextInLine.username} is next in line...
+          </Text>
+        )}
       </Animated.View>
 
       <ScrollView contentContainerStyle={styles.container}>
@@ -437,6 +449,7 @@ const HomeScreen = ({ navigation }) => {
 
 export default HomeScreen;
 
+// Styles remain unchanged from your original code
 const styles = StyleSheet.create({
   gradient: { flex: 1, backgroundColor: "#1c1c1e" },
   container: {
@@ -456,7 +469,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     borderRadius: 30,
     backgroundColor: "rgba(255, 255, 255, 0.08)",
-    shadowColor: "#4da6ff", // subtle glow
+    shadowColor: "#4da6ff",
     shadowOpacity: 0.45,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
@@ -480,7 +493,7 @@ const styles = StyleSheet.create({
     minWidth: 240,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#4da6ff", // button glow
+    shadowColor: "#4da6ff",
     shadowOpacity: 0.45,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },
@@ -494,7 +507,7 @@ const styles = StyleSheet.create({
     minWidth: 260,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#43e97b", // glow when active
+    shadowColor: "#43e97b",
     shadowOpacity: 0.5,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 4 },
