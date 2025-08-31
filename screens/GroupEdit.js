@@ -1,4 +1,3 @@
-// GroupEdit.js
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -8,8 +7,15 @@ import {
   FlatList,
   TouchableOpacity,
   Alert,
+  TextInput,
+  Modal,
 } from "react-native";
-import { doc, updateDoc, arrayRemove, onSnapshot } from "firebase/firestore";
+import {
+  doc,
+  updateDoc,
+  onSnapshot,
+  runTransaction,
+} from "firebase/firestore";
 import { db } from "../FirebaseConfig";
 import { getAuth } from "firebase/auth";
 import { Ionicons } from "@expo/vector-icons";
@@ -20,6 +26,10 @@ const GroupEdit = ({ route, navigation }) => {
   const { group } = route.params || {};
   const [groupData, setGroupData] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // State for editing group name
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [newGroupName, setNewGroupName] = useState("");
 
   const auth = getAuth();
   const currentUser = auth.currentUser;
@@ -46,6 +56,7 @@ const GroupEdit = ({ route, navigation }) => {
     return () => unsubscribe();
   }, [group]);
 
+  // ✅ Leave group without duplicates
   const handleLeaveGroup = async () => {
     Alert.alert("Leave Group", "Are you sure you want to leave?", [
       { text: "Cancel", style: "cancel" },
@@ -56,12 +67,22 @@ const GroupEdit = ({ route, navigation }) => {
           try {
             const groupRef = doc(db, "groups", group.id);
 
-            await updateDoc(groupRef, {
-              members: arrayRemove({
-                uid: currentUser.uid,
-                username: currentUser.displayName || "Anonymous",
-              }),
-              membersUIDs: arrayRemove(currentUser.uid),
+            await runTransaction(db, async (transaction) => {
+              const snap = await transaction.get(groupRef);
+              if (!snap.exists()) return;
+
+              const data = snap.data();
+              let members = data.members || [];
+              let membersUIDs = data.membersUIDs || [];
+
+              // filter out this user
+              members = members.filter((m) => m.uid !== currentUser.uid);
+              membersUIDs = membersUIDs.filter((id) => id !== currentUser.uid);
+
+              transaction.update(groupRef, {
+                members,
+                membersUIDs,
+              });
             });
 
             navigation.navigate("Home");
@@ -74,6 +95,7 @@ const GroupEdit = ({ route, navigation }) => {
     ]);
   };
 
+  // ✅ Kick member without duplicates
   const handleKickMember = async (member) => {
     Alert.alert(
       "Kick Member",
@@ -87,20 +109,27 @@ const GroupEdit = ({ route, navigation }) => {
             try {
               const groupRef = doc(db, "groups", group.id);
 
-              await updateDoc(groupRef, {
-                members: arrayRemove({
-                  uid: member.uid,
-                  username: member.username || "Anonymous",
-                }),
-                membersUIDs: arrayRemove(member.uid),
-              });
+              await runTransaction(db, async (transaction) => {
+                const snap = await transaction.get(groupRef);
+                if (!snap.exists()) return;
 
-              if (groupData.toiletStatus) {
-                const updatedToiletStatus = groupData.toiletStatus.filter(
-                  (u) => u.uid !== member.uid
-                );
-                await updateDoc(groupRef, { toiletStatus: updatedToiletStatus });
-              }
+                const data = snap.data();
+                let members = data.members || [];
+                let membersUIDs = data.membersUIDs || [];
+
+                members = members.filter((m) => m.uid !== member.uid);
+                membersUIDs = membersUIDs.filter((id) => id !== member.uid);
+
+                let updateData = { members, membersUIDs };
+
+                if (data.toiletStatus) {
+                  updateData.toiletStatus = data.toiletStatus.filter(
+                    (u) => u.uid !== member.uid
+                  );
+                }
+
+                transaction.update(groupRef, updateData);
+              });
             } catch (error) {
               console.error("Error kicking member:", error);
               Alert.alert("Error", "Could not remove member.");
@@ -109,6 +138,22 @@ const GroupEdit = ({ route, navigation }) => {
         },
       ]
     );
+  };
+
+  const handleSaveGroupName = async () => {
+    if (!newGroupName.trim()) {
+      Alert.alert("Error", "Group name cannot be empty.");
+      return;
+    }
+    try {
+      const groupRef = doc(db, "groups", group.id);
+      await updateDoc(groupRef, { name: newGroupName.trim() });
+      setIsEditingName(false);
+      setNewGroupName("");
+    } catch (error) {
+      console.error("Error updating group name:", error);
+      Alert.alert("Error", "Could not update group name.");
+    }
   };
 
   const renderAvatar = (username) => {
@@ -153,7 +198,17 @@ const GroupEdit = ({ route, navigation }) => {
             {/* Group Header */}
             <BlurView intensity={40} tint="dark" style={styles.headerCard}>
               <Ionicons name="people-circle-outline" size={50} color="#fff" />
-              <Text style={styles.groupName}>{groupData.name}</Text>
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                <Text style={styles.groupName}>{groupData.name}</Text>
+                {currentUser.uid === groupData.ownerId && (
+                  <TouchableOpacity
+                    onPress={() => setIsEditingName(true)}
+                    style={{ marginLeft: 8 }}
+                  >
+                    <Ionicons name="pencil" size={20} color="#fff" />
+                  </TouchableOpacity>
+                )}
+              </View>
               <Text style={styles.ownerName}>
                 👑 {groupData.ownerName || "Unknown"}
               </Text>
@@ -189,6 +244,37 @@ const GroupEdit = ({ route, navigation }) => {
                 <Text style={styles.emptyText}>No members yet</Text>
               )}
             </BlurView>
+
+            {/* Leaderboard */}
+            <BlurView intensity={40} tint="dark" style={styles.membersCard}>
+              <Text style={styles.sectionTitle}>🏆 Leaderboard</Text>
+
+              {groupData.members?.length > 0 ? (
+                [...groupData.members]
+                  .sort(
+                    (a, b) => (b.indulgeCount || 0) - (a.indulgeCount || 0)
+                  )
+                  .map((item, index) => {
+                    let medal = "";
+                    if (index === 0) medal = "🥇";
+                    else if (index === 1) medal = "🥈";
+                    else if (index === 2) medal = "🥉";
+
+                    return (
+                      <View key={item.uid} style={styles.memberRow}>
+                        <Text style={styles.memberName}>
+                          {index + 1}. {item.username || "Anonymous"} {medal}
+                        </Text>
+                        <Text style={{ color: "#fff", fontWeight: "600" }}>
+                          {item.indulgeCount || 0} 💩
+                        </Text>
+                      </View>
+                    );
+                  })
+              ) : (
+                <Text style={styles.emptyText}>No leaderboard data</Text>
+              )}
+            </BlurView>
           </View>
         }
         contentContainerStyle={{ paddingBottom: 100 }}
@@ -211,6 +297,39 @@ const GroupEdit = ({ route, navigation }) => {
           <Ionicons name="exit-outline" size={26} color="#fff" />
         </LinearGradient>
       </TouchableOpacity>
+
+      {/* Modal for editing group name */}
+      <Modal transparent visible={isEditingName} animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Edit Group Name</Text>
+            <TextInput
+              value={newGroupName}
+              onChangeText={setNewGroupName}
+              placeholder="Enter new group name"
+              placeholderTextColor="#aaa"
+              style={styles.input}
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                onPress={() => {
+                  setIsEditingName(false);
+                  setNewGroupName("");
+                }}
+                style={styles.cancelButton}
+              >
+                <Text style={{ color: "#fff" }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleSaveGroupName}
+                style={styles.saveButton}
+              >
+                <Text style={{ color: "#fff", fontWeight: "700" }}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </LinearGradient>
   );
 };
@@ -218,13 +337,8 @@ const GroupEdit = ({ route, navigation }) => {
 export default GroupEdit;
 
 const styles = StyleSheet.create({
-  background: {
-    flex: 1,
-  },
-  container: {
-    padding: 20,
-    gap: 20,
-  },
+  background: { flex: 1 },
+  container: { padding: 20, gap: 20 },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
   errorText: { fontSize: 16, color: "#eee" },
   headerCard: {
@@ -259,11 +373,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  avatarText: {
-    color: "#fff",
-    fontWeight: "700",
-    fontSize: 16,
-  },
+  avatarText: { color: "#fff", fontWeight: "700", fontSize: 16 },
   kickButton: {
     backgroundColor: "#ff4b2b",
     paddingVertical: 6,
@@ -291,5 +401,44 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     justifyContent: "center",
     alignItems: "center",
+  },
+
+  // Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalCard: {
+    backgroundColor: "#222",
+    padding: 20,
+    borderRadius: 20,
+    width: "80%",
+  },
+  modalTitle: { fontSize: 18, fontWeight: "700", color: "#fff", marginBottom: 12 },
+  input: {
+    backgroundColor: "#333",
+    padding: 12,
+    borderRadius: 10,
+    color: "#fff",
+    marginBottom: 16,
+  },
+  modalActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 12,
+  },
+  cancelButton: {
+    backgroundColor: "#666",
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+  },
+  saveButton: {
+    backgroundColor: "#2575fc",
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 10,
   },
 });

@@ -18,12 +18,14 @@ import {
   doc,
   updateDoc,
   arrayUnion,
+  setDoc,
 } from "firebase/firestore";
 import { auth, db } from "../FirebaseConfig";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Circle } from "react-native-svg";
 import { useRoute } from "@react-navigation/native";
-import Animated, {
+import Animated,
+{
   useSharedValue,
   useAnimatedStyle,
   withTiming,
@@ -37,7 +39,6 @@ const HomeScreen = ({ navigation }) => {
   const route = useRoute();
   const [user, setUser] = useState(null);
   const [joinedGroup, setJoinedGroup] = useState(null);
-  const [toiletUsers, setToiletUsers] = useState([]);
   const [isOnToilet, setIsOnToilet] = useState(false);
   const [endTime, setEndTime] = useState(null);
   const [remainingTime, setRemainingTime] = useState(0);
@@ -77,68 +78,63 @@ const HomeScreen = ({ navigation }) => {
             const groupRef = doc(db, "groups", groupDoc.id);
 
             // listen to this group
-            const unsubscribeGroup = onSnapshot(groupRef, (snap) => {
+            const unsubscribeGroup = onSnapshot(groupRef, async (snap) => {
               if (snap.exists()) {
-                const data = snap.data();
+                let data = snap.data();
+
+                // 🚽 If toiletStatus missing → initialize
+                if (!data.toiletStatus) {
+                  await updateDoc(groupRef, {
+                    toiletStatus: { current: null, queue: [] },
+                  });
+                  data = { ...data, toiletStatus: { current: null, queue: [] } };
+                }
 
                 // kicked from group
                 if (!data.membersUIDs?.includes(currentUser.uid)) {
-                  setJoinedGroup(null);
-                  setToiletUsers([]);
-                  setIsOnToilet(false);
-                  setEndTime(null);
-                  setRemainingTime(0);
+                  resetToiletState();
                   return;
                 }
 
                 setJoinedGroup({ id: snap.id, ...data });
 
-                const list = data.toiletStatus || [];
-                setToiletUsers(list);
+                // Check if I'm inside
+                const meInside = data.toiletStatus.current?.uid === currentUser.uid;
+                setIsOnToilet(meInside);
 
-                const me = list.find((u) => u.uid === currentUser.uid);
-                if (me) {
-                  setIsOnToilet(true);
-                  if (me.expiresAt) setEndTime(me.expiresAt);
+                if (meInside && data.toiletStatus.current.expiresAt) {
+                  setEndTime(data.toiletStatus.current.expiresAt);
                 } else {
-                  setIsOnToilet(false);
                   setEndTime(null);
                   setRemainingTime(0);
                 }
               } else {
-                // group deleted
-                setJoinedGroup(null);
-                setToiletUsers([]);
-                setIsOnToilet(false);
-                setEndTime(null);
-                setRemainingTime(0);
+                resetToiletState();
               }
             });
 
             return () => unsubscribeGroup();
           } else {
-            // no group
-            setJoinedGroup(null);
-            setToiletUsers([]);
-            setIsOnToilet(false);
-            setEndTime(null);
-            setRemainingTime(0);
+            resetToiletState();
           }
         });
 
         return () => unsubscribeGroupQuery();
       } else {
-        setUser(null);
-        setJoinedGroup(null);
-        setToiletUsers([]);
-        setIsOnToilet(false);
-        setEndTime(null);
-        setRemainingTime(0);
+        resetToiletState();
       }
     });
 
     return () => unsubscribeAuth();
   }, []);
+
+  const resetToiletState = () => {
+    setUser(null);
+    setJoinedGroup(null);
+    setIsOnToilet(false);
+    setEndTime(null);
+    setRemainingTime(0);
+  };
 
   // 🔹 Toilet timer + progress animation
   useEffect(() => {
@@ -150,48 +146,37 @@ const HomeScreen = ({ navigation }) => {
         easing: Easing.linear,
       });
 
-      interval = setInterval(() => {
+      interval = setInterval(async () => {
         const left = Math.max(0, endTime - Date.now());
         setRemainingTime(left);
 
         if (left <= 0) {
           clearInterval(interval);
 
-          (async () => {
-            if (!joinedGroup || !user) return;
-            const groupRef = doc(db, "groups", joinedGroup.id);
-            const updatedList = toiletUsers.filter((u) => u.uid !== user.uid);
-            await updateDoc(groupRef, { toiletStatus: updatedList });
+          if (!joinedGroup || !user) return;
+          const groupRef = doc(db, "groups", joinedGroup.id);
 
-            setIsOnToilet(false);
-            setEndTime(null);
-            setRemainingTime(0);
+          // Promote next in queue if exists
+          let newData = { "toiletStatus.current": null };
 
-            Alert.alert(
-              "⏳ Time’s Up!",
-              "Are you still in the toilet?",
-              [
-                {
-                  text: "No, I’m done ✅",
-                  onPress: () => handleToiletToggle(),
-                  style: "destructive",
-                },
-                {
-                  text: "Yes, still here 🚽",
-                  onPress: async () => {
-                    const newExpiry = Date.now() + 10 * 60 * 1000;
-                    setEndTime(newExpiry);
-                    const groupRef = doc(db, "groups", joinedGroup.id);
-                    const updatedList = toiletUsers.map((u) =>
-                      u.uid === user.uid ? { ...u, expiresAt: newExpiry } : u
-                    );
-                    await updateDoc(groupRef, { toiletStatus: updatedList });
-                  },
-                },
-              ],
-              { cancelable: false }
-            );
-          })();
+          if (joinedGroup.toiletStatus.queue?.length > 0) {
+            const [next, ...rest] = joinedGroup.toiletStatus.queue;
+            const newExpiry = Date.now() + 10 * 60 * 1000;
+            newData = {
+              "toiletStatus.current": {
+                ...next,
+                expiresAt: newExpiry,
+                startedAt: Date.now(),
+              },
+              "toiletStatus.queue": rest,
+            };
+          }
+
+          await updateDoc(groupRef, newData);
+
+          setIsOnToilet(false);
+          setEndTime(null);
+          setRemainingTime(0);
         }
       }, 1000);
     } else {
@@ -200,7 +185,7 @@ const HomeScreen = ({ navigation }) => {
     }
 
     return () => clearInterval(interval);
-  }, [isOnToilet, endTime, joinedGroup, toiletUsers, user]);
+  }, [isOnToilet, endTime, joinedGroup, user]);
 
   const animatedProps = useAnimatedProps(() => ({
     strokeDashoffset: progress.value,
@@ -212,24 +197,55 @@ const HomeScreen = ({ navigation }) => {
 
     try {
       if (!isOnToilet) {
-        if (toiletUsers.length > 0) {
-          Alert.alert("🚫 Occupied ");
-          return;
+        if (joinedGroup.toiletStatus?.current) {
+          // Someone inside → join queue
+          const alreadyQueued = joinedGroup.toiletStatus.queue?.some(
+            (q) => q.uid === user.uid
+          );
+          if (alreadyQueued) {
+            Alert.alert("⏳ You’re already in the queue!");
+            return;
+          }
+
+          await updateDoc(groupRef, {
+            "toiletStatus.queue": arrayUnion({
+              uid: user.uid,
+              username: user.displayName || "Anonymous",
+              timestamp: Date.now(),
+            }),
+          });
+
+          Alert.alert("🚽 Occupied", "You’ve been added to the queue.");
+        } else {
+          // Free → enter toilet
+          const expiry = Date.now() + 10 * 60 * 1000;
+          await updateDoc(groupRef, {
+            "toiletStatus.current": {
+              uid: user.uid,
+              username: user.displayName || "Anonymous",
+              expiresAt: expiry,
+              startedAt: Date.now(),
+            },
+          });
+        }
+      } else {
+        // Leaving toilet
+        let newData = { "toiletStatus.current": null };
+
+        if (joinedGroup.toiletStatus.queue?.length > 0) {
+          const [next, ...rest] = joinedGroup.toiletStatus.queue;
+          const newExpiry = Date.now() + 10 * 60 * 1000;
+          newData = {
+            "toiletStatus.current": {
+              ...next,
+              expiresAt: newExpiry,
+              startedAt: Date.now(),
+            },
+            "toiletStatus.queue": rest,
+          };
         }
 
-        const expiry = Date.now() + 10 * 60 * 1000;
-        await updateDoc(groupRef, {
-          toiletStatus: arrayUnion({
-            uid: user.uid,
-            username: user.displayName || "Anonymous",
-            status: "inToilet",
-            timestamp: Date.now(),
-            expiresAt: expiry,
-          }),
-        });
-      } else {
-        const updatedList = toiletUsers.filter((u) => u.uid !== user.uid);
-        await updateDoc(groupRef, { toiletStatus: updatedList });
+        await updateDoc(groupRef, newData);
       }
     } catch (error) {
       console.error("Error updating toilet status:", error);
@@ -245,7 +261,7 @@ const HomeScreen = ({ navigation }) => {
 
   // 🚽 Toast animation effect
   useEffect(() => {
-    if (toiletUsers.length > 0) {
+    if (joinedGroup?.toiletStatus?.current || joinedGroup?.toiletStatus?.queue?.length > 0) {
       toastTranslateY.value = withTiming(0, {
         duration: 400,
         easing: Easing.out(Easing.ease),
@@ -255,7 +271,7 @@ const HomeScreen = ({ navigation }) => {
       toastTranslateY.value = withTiming(-100, { duration: 300 });
       toastOpacity.value = withTiming(0, { duration: 300 });
     }
-  }, [toiletUsers]);
+  }, [joinedGroup]);
 
   const toastStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: toastTranslateY.value }],
@@ -263,15 +279,20 @@ const HomeScreen = ({ navigation }) => {
   }));
 
   return (
-    <LinearGradient colors={["#1c1c1e", "#2c2c2e"]} style={styles.gradient}>
+    <LinearGradient colors={["#0f0f0f", "#1a1a1a"]} style={styles.gradient}>
       {/* 🚽 Floating Toilet Alert */}
       <Animated.View style={[styles.toastContainer, toastStyle]}>
         <Text style={styles.toastTitle}>🚽 Toilet Alert</Text>
-        {toiletUsers.map((u) => (
-          <Text key={u.uid} style={styles.toastText}>
-            {u.username} is in the toilet...
+        {joinedGroup?.toiletStatus?.current && (
+          <Text style={styles.toastText}>
+            {joinedGroup.toiletStatus.current.username} is in the toilet...
           </Text>
-        ))}
+        )}
+        {joinedGroup?.toiletStatus?.queue?.length > 0 && (
+          <Text style={styles.toastText}>
+            ⏳ Next in line: {joinedGroup.toiletStatus.queue[0].username}
+          </Text>
+        )}
       </Animated.View>
 
       <ScrollView contentContainerStyle={styles.container}>
@@ -430,7 +451,7 @@ const HomeScreen = ({ navigation }) => {
 export default HomeScreen;
 
 const styles = StyleSheet.create({
-  gradient: { flex: 1, backgroundColor: "#1c1c1e" },
+  gradient: { flex: 1 },
   container: {
     flexGrow: 1,
     justifyContent: "center",
@@ -448,11 +469,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     borderRadius: 30,
     backgroundColor: "rgba(255, 255, 255, 0.08)",
-    shadowColor: "#4da6ff", // subtle glow
-    shadowOpacity: 0.45,
+    shadowColor: "#000",
+    shadowOpacity: 0.25,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
-    elevation: 6,
   },
   avatarCircle: {
     width: 32,
@@ -472,11 +492,10 @@ const styles = StyleSheet.create({
     minWidth: 240,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#4da6ff", // button glow
-    shadowOpacity: 0.45,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 6,
+    shadowColor: "#000",
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
   },
   buttonText: { color: "#fff", fontSize: 17, fontWeight: "600" },
   toiletButtonGradient: {
@@ -486,11 +505,10 @@ const styles = StyleSheet.create({
     minWidth: 260,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#43e97b", // glow when active
-    shadowOpacity: 0.5,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 8,
+    shadowColor: "#000",
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
   },
   toiletButtonText: { color: "#fff", fontSize: 18, fontWeight: "700" },
   toastContainer: {
