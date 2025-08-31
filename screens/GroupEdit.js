@@ -198,16 +198,23 @@ const GroupEdit = ({ route, navigation }) => {
                   .sort(
                     (a, b) => (b.indulgeCount || 0) - (a.indulgeCount || 0)
                   )
-                  .map((item, index) => (
-                    <View key={item.uid} style={styles.memberRow}>
-                      <Text style={styles.memberName}>
-                        {index + 1}. {item.username || "Anonymous"}
-                      </Text>
-                      <Text style={{ color: "#fff", fontWeight: "600" }}>
-                        {(item.indulgeCount || 0)} 💩
-                      </Text>
-                    </View>
-                  ))
+                  .map((item, index) => {
+                    let medal = "";
+                    if (index === 0) medal = "🥇";
+                    else if (index === 1) medal = "🥈";
+                    else if (index === 2) medal = "🥉";
+
+                    return (
+                      <View key={item.uid} style={styles.memberRow}>
+                        <Text style={styles.memberName}>
+                          {index + 1}. {item.username || "Anonymous"} {medal}
+                        </Text>
+                        <Text style={{ color: "#fff", fontWeight: "600" }}>
+                          {(item.indulgeCount || 0)} 💩
+                        </Text>
+                      </View>
+                    );
+                  })
               ) : (
                 <Text style={styles.emptyText}>No leaderboard data</Text>
               )}
