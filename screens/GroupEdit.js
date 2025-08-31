@@ -7,6 +7,8 @@ import {
   FlatList,
   TouchableOpacity,
   Alert,
+  TextInput,
+  Modal,
 } from "react-native";
 import { doc, updateDoc, arrayRemove, onSnapshot } from "firebase/firestore";
 import { db } from "../FirebaseConfig";
@@ -19,6 +21,10 @@ const GroupEdit = ({ route, navigation }) => {
   const { group } = route.params || {};
   const [groupData, setGroupData] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // State for editing group name
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [newGroupName, setNewGroupName] = useState("");
 
   const auth = getAuth();
   const currentUser = auth.currentUser;
@@ -110,6 +116,22 @@ const GroupEdit = ({ route, navigation }) => {
     );
   };
 
+  const handleSaveGroupName = async () => {
+    if (!newGroupName.trim()) {
+      Alert.alert("Error", "Group name cannot be empty.");
+      return;
+    }
+    try {
+      const groupRef = doc(db, "groups", group.id);
+      await updateDoc(groupRef, { name: newGroupName.trim() });
+      setIsEditingName(false);
+      setNewGroupName("");
+    } catch (error) {
+      console.error("Error updating group name:", error);
+      Alert.alert("Error", "Could not update group name.");
+    }
+  };
+
   const renderAvatar = (username) => {
     const initial = username?.[0]?.toUpperCase() || "?";
     return (
@@ -152,7 +174,17 @@ const GroupEdit = ({ route, navigation }) => {
             {/* Group Header */}
             <BlurView intensity={40} tint="dark" style={styles.headerCard}>
               <Ionicons name="people-circle-outline" size={50} color="#fff" />
-              <Text style={styles.groupName}>{groupData.name}</Text>
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                <Text style={styles.groupName}>{groupData.name}</Text>
+                {currentUser.uid === groupData.ownerId && (
+                  <TouchableOpacity
+                    onPress={() => setIsEditingName(true)}
+                    style={{ marginLeft: 8 }}
+                  >
+                    <Ionicons name="pencil" size={20} color="#fff" />
+                  </TouchableOpacity>
+                )}
+              </View>
               <Text style={styles.ownerName}>
                 👑 {groupData.ownerName || "Unknown"}
               </Text>
@@ -210,7 +242,7 @@ const GroupEdit = ({ route, navigation }) => {
                           {index + 1}. {item.username || "Anonymous"} {medal}
                         </Text>
                         <Text style={{ color: "#fff", fontWeight: "600" }}>
-                          {(item.indulgeCount || 0)} 💩
+                          {item.indulgeCount || 0} 💩
                         </Text>
                       </View>
                     );
@@ -241,6 +273,39 @@ const GroupEdit = ({ route, navigation }) => {
           <Ionicons name="exit-outline" size={26} color="#fff" />
         </LinearGradient>
       </TouchableOpacity>
+
+      {/* Modal for editing group name */}
+      <Modal transparent visible={isEditingName} animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Edit Group Name</Text>
+            <TextInput
+              value={newGroupName}
+              onChangeText={setNewGroupName}
+              placeholder="Enter new group name"
+              placeholderTextColor="#aaa"
+              style={styles.input}
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                onPress={() => {
+                  setIsEditingName(false);
+                  setNewGroupName("");
+                }}
+                style={styles.cancelButton}
+              >
+                <Text style={{ color: "#fff" }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleSaveGroupName}
+                style={styles.saveButton}
+              >
+                <Text style={{ color: "#fff", fontWeight: "700" }}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </LinearGradient>
   );
 };
@@ -248,13 +313,8 @@ const GroupEdit = ({ route, navigation }) => {
 export default GroupEdit;
 
 const styles = StyleSheet.create({
-  background: {
-    flex: 1,
-  },
-  container: {
-    padding: 20,
-    gap: 20,
-  },
+  background: { flex: 1 },
+  container: { padding: 20, gap: 20 },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
   errorText: { fontSize: 16, color: "#eee" },
   headerCard: {
@@ -289,11 +349,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  avatarText: {
-    color: "#fff",
-    fontWeight: "700",
-    fontSize: 16,
-  },
+  avatarText: { color: "#fff", fontWeight: "700", fontSize: 16 },
   kickButton: {
     backgroundColor: "#ff4b2b",
     paddingVertical: 6,
@@ -321,5 +377,44 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     justifyContent: "center",
     alignItems: "center",
+  },
+
+  // Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalCard: {
+    backgroundColor: "#222",
+    padding: 20,
+    borderRadius: 20,
+    width: "80%",
+  },
+  modalTitle: { fontSize: 18, fontWeight: "700", color: "#fff", marginBottom: 12 },
+  input: {
+    backgroundColor: "#333",
+    padding: 12,
+    borderRadius: 10,
+    color: "#fff",
+    marginBottom: 16,
+  },
+  modalActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 12,
+  },
+  cancelButton: {
+    backgroundColor: "#666",
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+  },
+  saveButton: {
+    backgroundColor: "#2575fc",
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 10,
   },
 });
