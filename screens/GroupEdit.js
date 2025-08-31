@@ -10,7 +10,12 @@ import {
   TextInput,
   Modal,
 } from "react-native";
-import { doc, updateDoc, arrayRemove, onSnapshot } from "firebase/firestore";
+import {
+  doc,
+  updateDoc,
+  onSnapshot,
+  runTransaction,
+} from "firebase/firestore";
 import { db } from "../FirebaseConfig";
 import { getAuth } from "firebase/auth";
 import { Ionicons } from "@expo/vector-icons";
@@ -51,6 +56,7 @@ const GroupEdit = ({ route, navigation }) => {
     return () => unsubscribe();
   }, [group]);
 
+  // ✅ Leave group without duplicates
   const handleLeaveGroup = async () => {
     Alert.alert("Leave Group", "Are you sure you want to leave?", [
       { text: "Cancel", style: "cancel" },
@@ -61,12 +67,22 @@ const GroupEdit = ({ route, navigation }) => {
           try {
             const groupRef = doc(db, "groups", group.id);
 
-            await updateDoc(groupRef, {
-              members: arrayRemove({
-                uid: currentUser.uid,
-                username: currentUser.displayName || "Anonymous",
-              }),
-              membersUIDs: arrayRemove(currentUser.uid),
+            await runTransaction(db, async (transaction) => {
+              const snap = await transaction.get(groupRef);
+              if (!snap.exists()) return;
+
+              const data = snap.data();
+              let members = data.members || [];
+              let membersUIDs = data.membersUIDs || [];
+
+              // filter out this user
+              members = members.filter((m) => m.uid !== currentUser.uid);
+              membersUIDs = membersUIDs.filter((id) => id !== currentUser.uid);
+
+              transaction.update(groupRef, {
+                members,
+                membersUIDs,
+              });
             });
 
             navigation.navigate("Home");
@@ -79,6 +95,7 @@ const GroupEdit = ({ route, navigation }) => {
     ]);
   };
 
+  // ✅ Kick member without duplicates
   const handleKickMember = async (member) => {
     Alert.alert(
       "Kick Member",
@@ -92,20 +109,27 @@ const GroupEdit = ({ route, navigation }) => {
             try {
               const groupRef = doc(db, "groups", group.id);
 
-              await updateDoc(groupRef, {
-                members: arrayRemove({
-                  uid: member.uid,
-                  username: member.username || "Anonymous",
-                }),
-                membersUIDs: arrayRemove(member.uid),
-              });
+              await runTransaction(db, async (transaction) => {
+                const snap = await transaction.get(groupRef);
+                if (!snap.exists()) return;
 
-              if (groupData.toiletStatus) {
-                const updatedToiletStatus = groupData.toiletStatus.filter(
-                  (u) => u.uid !== member.uid
-                );
-                await updateDoc(groupRef, { toiletStatus: updatedToiletStatus });
-              }
+                const data = snap.data();
+                let members = data.members || [];
+                let membersUIDs = data.membersUIDs || [];
+
+                members = members.filter((m) => m.uid !== member.uid);
+                membersUIDs = membersUIDs.filter((id) => id !== member.uid);
+
+                let updateData = { members, membersUIDs };
+
+                if (data.toiletStatus) {
+                  updateData.toiletStatus = data.toiletStatus.filter(
+                    (u) => u.uid !== member.uid
+                  );
+                }
+
+                transaction.update(groupRef, updateData);
+              });
             } catch (error) {
               console.error("Error kicking member:", error);
               Alert.alert("Error", "Could not remove member.");
