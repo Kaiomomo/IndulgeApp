@@ -227,6 +227,14 @@ const HomeScreen = ({ navigation }) => {
             expiresAt: expiry,
           }),
         });
+
+        // 🔹 update indulgeCount inside members
+        const updatedMembers = (joinedGroup.members || []).map((m) =>
+          m.uid === user.uid
+            ? { ...m, indulgeCount: (m.indulgeCount || 0) + 1 }
+            : m
+        );
+        await updateDoc(groupRef, { members: updatedMembers });
       } else {
         const updatedList = toiletUsers.filter((u) => u.uid !== user.uid);
         await updateDoc(groupRef, { toiletStatus: updatedList });

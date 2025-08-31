@@ -1,4 +1,3 @@
-// GroupEdit.js
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -187,6 +186,30 @@ const GroupEdit = ({ route, navigation }) => {
                 ))
               ) : (
                 <Text style={styles.emptyText}>No members yet</Text>
+              )}
+            </BlurView>
+
+            {/* Leaderboard */}
+            <BlurView intensity={40} tint="dark" style={styles.membersCard}>
+              <Text style={styles.sectionTitle}>🏆 Leaderboard</Text>
+
+              {groupData.members?.length > 0 ? (
+                [...groupData.members]
+                  .sort(
+                    (a, b) => (b.indulgeCount || 0) - (a.indulgeCount || 0)
+                  )
+                  .map((item, index) => (
+                    <View key={item.uid} style={styles.memberRow}>
+                      <Text style={styles.memberName}>
+                        {index + 1}. {item.username || "Anonymous"}
+                      </Text>
+                      <Text style={{ color: "#fff", fontWeight: "600" }}>
+                        {(item.indulgeCount || 0)} 💩
+                      </Text>
+                    </View>
+                  ))
+              ) : (
+                <Text style={styles.emptyText}>No leaderboard data</Text>
               )}
             </BlurView>
           </View>
