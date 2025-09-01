@@ -9,6 +9,11 @@ import {
   ActivityIndicator,
   Modal,
   TextInput,
+  KeyboardAvoidingView,
+  ScrollView,
+  Platform,
+  Keyboard,
+  TouchableWithoutFeedback,
 } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -202,43 +207,55 @@ const CreateGroup = () => {
       {/* Modal */}
       <Modal visible={modalVisible} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>✨ New Group</Text>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={{ flex: 1 }}
+          >
+            <ScrollView
+              contentContainerStyle={{ flexGrow: 1, justifyContent: "flex-end" }}
+              keyboardShouldPersistTaps="handled"
+            >
+              <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+                <View style={styles.modalContent}>
+                  <Text style={styles.modalTitle}>✨ New Group</Text>
 
-            <TextInput
-              placeholder="Group Name"
-              placeholderTextColor="#999"
-              style={styles.input}
-              value={groupName}
-              onChangeText={setGroupName}
-            />
+                  <TextInput
+                    placeholder="Group Name"
+                    placeholderTextColor="#999"
+                    style={styles.input}
+                    value={groupName}
+                    onChangeText={setGroupName}
+                  />
 
-            <TextInput
-              placeholder="Members (comma separated)"
-              placeholderTextColor="#999"
-              style={styles.input}
-              value={members}
-              onChangeText={setMembers}
-            />
+                  <TextInput
+                    placeholder="Members (comma separated)"
+                    placeholderTextColor="#999"
+                    style={styles.input}
+                    value={members}
+                    onChangeText={setMembers}
+                  />
 
-            <Text style={styles.groupCodeLabel}>
-              Group Code: {groupCode}
-            </Text>
+                  <Text style={styles.groupCodeLabel}>
+                    Group Code: {groupCode}
+                  </Text>
 
-            <View style={styles.modalButtons}>
-              <TouchableOpacity onPress={() => setModalVisible(false)}>
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              <LinearGradient
-                colors={["#ff7e5f", "#feb47b"]}
-                style={styles.saveButton}
-              >
-                <TouchableOpacity onPress={handleSaveGroup}>
-                  <Text style={styles.saveButtonText}>Save</Text>
-                </TouchableOpacity>
-              </LinearGradient>
-            </View>
-          </View>
+                  <View style={styles.modalButtons}>
+                    <TouchableOpacity onPress={() => setModalVisible(false)}>
+                      <Text style={styles.cancelButtonText}>Cancel</Text>
+                    </TouchableOpacity>
+                    <LinearGradient
+                      colors={["#ff7e5f", "#feb47b"]}
+                      style={styles.saveButton}
+                    >
+                      <TouchableOpacity onPress={handleSaveGroup}>
+                        <Text style={styles.saveButtonText}>Save</Text>
+                      </TouchableOpacity>
+                    </LinearGradient>
+                  </View>
+                </View>
+              </TouchableWithoutFeedback>
+            </ScrollView>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
     </LinearGradient>
