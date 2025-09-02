@@ -18,14 +18,13 @@ import {
   doc,
   updateDoc,
   arrayUnion,
-  setDoc,
+  runTransaction,
 } from "firebase/firestore";
 import { auth, db } from "../FirebaseConfig";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Circle } from "react-native-svg";
 import { useRoute } from "@react-navigation/native";
-import Animated,
-{
+import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
@@ -129,7 +128,6 @@ const HomeScreen = ({ navigation }) => {
   }, []);
 
   const resetToiletState = () => {
-    setUser(null);
     setJoinedGroup(null);
     setIsOnToilet(false);
     setEndTime(null);
@@ -156,23 +154,33 @@ const HomeScreen = ({ navigation }) => {
           if (!joinedGroup || !user) return;
           const groupRef = doc(db, "groups", joinedGroup.id);
 
-          // Promote next in queue if exists
-          let newData = { "toiletStatus.current": null };
+          // Use transaction to auto-promote + count
+          await runTransaction(db, async (transaction) => {
+            const snap = await transaction.get(groupRef);
+            if (!snap.exists()) return;
+            const data = snap.data();
 
-          if (joinedGroup.toiletStatus.queue?.length > 0) {
-            const [next, ...rest] = joinedGroup.toiletStatus.queue;
-            const newExpiry = Date.now() + 10 * 60 * 1000;
-            newData = {
-              "toiletStatus.current": {
-                ...next,
-                expiresAt: newExpiry,
-                startedAt: Date.now(),
-              },
-              "toiletStatus.queue": rest,
-            };
-          }
+            let updateData = { toiletStatus: { current: null, queue: [] } };
 
-          await updateDoc(groupRef, newData);
+            if (data.toiletStatus.queue?.length > 0) {
+              const [next, ...rest] = data.toiletStatus.queue;
+              const newExpiry = Date.now() + 10 * 60 * 1000;
+              updateData.toiletStatus = {
+                current: { ...next, expiresAt: newExpiry, startedAt: Date.now() },
+                queue: rest,
+              };
+            }
+
+            // increment indulgeCount
+            const members = data.members.map((m) =>
+              m.uid === user.uid
+                ? { ...m, indulgeCount: (m.indulgeCount || 0) + 1 }
+                : m
+            );
+
+            updateData.members = members;
+            transaction.update(groupRef, updateData);
+          });
 
           setIsOnToilet(false);
           setEndTime(null);
@@ -229,23 +237,33 @@ const HomeScreen = ({ navigation }) => {
           });
         }
       } else {
-        // Leaving toilet
-        let newData = { "toiletStatus.current": null };
+        // 🚽 Leaving toilet → transaction safe
+        await runTransaction(db, async (transaction) => {
+          const snap = await transaction.get(groupRef);
+          if (!snap.exists()) return;
+          const data = snap.data();
 
-        if (joinedGroup.toiletStatus.queue?.length > 0) {
-          const [next, ...rest] = joinedGroup.toiletStatus.queue;
-          const newExpiry = Date.now() + 10 * 60 * 1000;
-          newData = {
-            "toiletStatus.current": {
-              ...next,
-              expiresAt: newExpiry,
-              startedAt: Date.now(),
-            },
-            "toiletStatus.queue": rest,
-          };
-        }
+          let updateData = { toiletStatus: { current: null, queue: [] } };
 
-        await updateDoc(groupRef, newData);
+          if (data.toiletStatus.queue?.length > 0) {
+            const [next, ...rest] = data.toiletStatus.queue;
+            const newExpiry = Date.now() + 10 * 60 * 1000;
+            updateData.toiletStatus = {
+              current: { ...next, expiresAt: newExpiry, startedAt: Date.now() },
+              queue: rest,
+            };
+          }
+
+          // increment indulgeCount
+          const members = data.members.map((m) =>
+            m.uid === user.uid
+              ? { ...m, indulgeCount: (m.indulgeCount || 0) + 1 }
+              : m
+          );
+
+          updateData.members = members;
+          transaction.update(groupRef, updateData);
+        });
       }
     } catch (error) {
       console.error("Error updating toilet status:", error);
@@ -261,7 +279,10 @@ const HomeScreen = ({ navigation }) => {
 
   // 🚽 Toast animation effect
   useEffect(() => {
-    if (joinedGroup?.toiletStatus?.current || joinedGroup?.toiletStatus?.queue?.length > 0) {
+    if (
+      joinedGroup?.toiletStatus?.current ||
+      joinedGroup?.toiletStatus?.queue?.length > 0
+    ) {
       toastTranslateY.value = withTiming(0, {
         duration: 400,
         easing: Easing.out(Easing.ease),
@@ -390,9 +411,7 @@ const HomeScreen = ({ navigation }) => {
             <TouchableOpacity onPress={handleToiletToggle} activeOpacity={0.85}>
               <LinearGradient
                 colors={
-                  isOnToilet
-                    ? ["#43e97b", "#38f9d7"]
-                    : ["#ff416c", "#ff4b2b"]
+                  isOnToilet ? ["#43e97b", "#38f9d7"] : ["#ff416c", "#ff4b2b"]
                 }
                 style={styles.toiletButtonGradient}
               >
