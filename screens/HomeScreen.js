@@ -129,7 +129,6 @@ const HomeScreen = ({ navigation }) => {
   }, []);
 
   const resetToiletState = () => {
-    setUser(null);
     setJoinedGroup(null);
     setIsOnToilet(false);
     setEndTime(null);
